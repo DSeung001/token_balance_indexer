@@ -1,12 +1,13 @@
-# docker-compose.yml
+version: "3.9"
 
 networks:
-  app-net: {}   # ← 고정 이름으로 정의
+  app-net: {}   # 고정 네트워크명 유지
 
 volumes:
   pgdata:
 
 services:
+  # db
   postgres:
     image: postgres:15
     container_name: ${COMPOSE_PROJECT_NAME}-postgres
@@ -21,13 +22,40 @@ services:
       - app-net
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./schema:/docker-entrypoint-initdb.d:ro
+      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 10
 
+  # db data init
+  
+
+  # db table migration
+  migrate:
+    image: migrate/migrate:4
+    container_name: ${COMPOSE_PROJECT_NAME}-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-net
+    volumes:
+      - ./db/migrations:/migrations:ro
+    # 초기 기동 시 최신까지 up. 스키마 변경 시엔 수동 실행 권장.
+    command: [
+      "-path", "/migrations",
+      "-database", "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable",
+      "up"
+    ]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    restart: "no"
+
+  # SQS 서버
   localstack:
     image: localstack/localstack:latest
     container_name: ${COMPOSE_PROJECT_NAME}-localstack
@@ -47,9 +75,34 @@ services:
     volumes:
       - "./.localstack:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
-    # awslocal이 없는 이미지일 수도 있으니 aws로 헬스체크
+    # curl 기반 헬스체크
     healthcheck:
-      test: ["CMD", "bash", "-lc", "aws --endpoint-url=http://localhost:4566 sqs list-queues >/dev/null 2>&1 || exit 1"]
+      test: [ "CMD-SHELL", "curl -fsS http://localhost:4566/_localstack/health | grep '\"sqs\": *\"available\"' >/dev/null" ]
       interval: 5s
       timeout: 5s
       retries: 20
+
+  # LocalStack에 SQS 큐 자동 생성로직
+  sqs-init:
+    image: amazon/aws-cli:2.15.58
+    container_name: ${COMPOSE_PROJECT_NAME}-sqs-init
+    depends_on:
+      localstack:
+        condition: service_healthy
+    networks:
+      - app-net
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      LOCALSTACK_URL: "http://localstack:${LOCALSTACK_EDGE_PORT}"
+      SQS_QUEUE_NAME: ${SQS_QUEUE_NAME}
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      "
+      set -e
+      echo 'creating SQS queue: ' ${SQS_QUEUE_NAME}
+      aws --endpoint-url=${LOCALSTACK_URL} sqs create-queue --queue-name ${SQS_QUEUE_NAME} || true
+      echo 'SQS ready'
+      "
+    restart: "no"

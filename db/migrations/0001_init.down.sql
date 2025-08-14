@@ -1,0 +1,11 @@
+SET search_path = indexer, public;
+DROP TABLE IF EXISTS app_state;
+DROP TABLE IF EXISTS balances;
+DROP TABLE IF EXISTS transfers;
+DROP TABLE IF EXISTS tokens;
+DROP TABLE IF EXISTS tx_event_attrs;
+DROP TABLE IF EXISTS tx_events;
+DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS blocks;
+DROP DOMAIN IF EXISTS u64;
+DROP SCHEMA IF EXISTS indexer CASCADE;
