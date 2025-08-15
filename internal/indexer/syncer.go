@@ -109,14 +109,25 @@ func (s *Syncer) saveTxs(ctx context.Context, tx Tx) error {
 		responseJSON, _ = json.Marshal(tx.Response)
 	}
 
+	// message to JSON
+	var messagesJSON []byte
+	if tx.Messages != nil {
+		messagesJSON, _ = json.Marshal(tx.Messages)
+	}
+
 	// save transaction
 	txRecord := map[string]interface{}{
-		"hash":           tx.Hash,
-		"block_height":   tx.BlockHeight,
-		"index_in_block": tx.Index,
-		"success":        tx.Success,
-		"gas_fee":        gasFeeJSON,
-		"response_json":  responseJSON,
+		"hash":          tx.Hash,
+		"block_height":  tx.BlockHeight,
+		"tx_index":      tx.Index,
+		"success":       tx.Success,
+		"gas_wanted":    tx.GasWanted,
+		"gas_used":      tx.GasUsed,
+		"memo":          tx.Memo,
+		"content_raw":   tx.ContentRaw,
+		"gas_fee":       gasFeeJSON,
+		"messages_json": messagesJSON,
+		"response_json": responseJSON,
 	}
 
 	if err := s.db.WithContext(ctx).Table("indexer.transactions").Create(txRecord).Error; err != nil {

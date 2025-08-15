@@ -3,7 +3,7 @@ package indexer
 const QBlocks = `
 query($gt:Int!, $lt:Int!){
   getBlocks(where:{height:{gt:$gt, lt:$lt}}){
-    hash height time num_txs total_txs
+    hash height last_block_hash time num_txs total_txs
   }
 }`
 
@@ -13,8 +13,14 @@ query($gt:Int!, $lt:Int!, $imax:Int!){
     block_height:{gt:$gt, lt:$lt},
     index:{lt:$imax}
   }){
-    index hash success block_height
+    index hash success block_height gas_wanted gas_used memo content_raw
     gas_fee { amount denom }
+    messages {
+      route
+      value {
+        __typename
+      }
+    }
     response {
       events {
         ... on GnoEvent {
@@ -29,6 +35,6 @@ query($gt:Int!, $lt:Int!, $imax:Int!){
 const QLatestBlock = `
 query {
   getBlocks(where:{}, limit: 1, orderBy: {height: DESC}) {
-    hash height time num_txs total_txs
+    hash height last_block_hash time num_txs total_txs
   }
 }`

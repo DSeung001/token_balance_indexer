@@ -7,24 +7,25 @@ CREATE DOMAIN u64 AS NUMERIC
 CREATE TABLE IF NOT EXISTS blocks (
     hash TEXT PRIMARY KEY,
     height BIGINT UNIQUE NOT NULL,
-    prev_hash TEXT,
+    last_block_hash TEXT,
     time TIMESTAMPTZ NOT NULL,
     total_txs BIGINT,
     num_txs BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
-    hash TEXT PRIMARY KEY,
-    block_height BIGINT NOT NULL REFERENCES blocks(height) ON DELETE CASCADE,
-    index_in_block INT NOT NULL,
-    success BOOLEAN,
-    gas_wanted BIGINT,
-    gas_used BIGINT,
-    memo TEXT,
-    gas_fee JSONB,
+    hash          TEXT PRIMARY KEY,
+    block_height  BIGINT NOT NULL REFERENCES blocks(height) ON DELETE CASCADE,
+    tx_index      INT NOT NULL,                -- GraphQL index ↔ tx_index mapping
+    success       BOOLEAN NOT NULL DEFAULT FALSE,
+    gas_wanted    BIGINT,
+    gas_used      BIGINT,
+    gas_fee       JSONB,
+    memo          TEXT,
+    content_raw   TEXT,
     messages_json JSONB,
     response_json JSONB,
-    UNIQUE (block_height, index_in_block)
+    UNIQUE (block_height, tx_index)
 );
 
 CREATE TABLE IF NOT EXISTS tx_events (
