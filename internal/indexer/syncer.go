@@ -10,8 +10,8 @@ import (
 )
 
 type Syncer struct {
-	blockClient *Client[BlocksData]
-	txClient    *Client[TxsData]
+	blockClient *GraphQLClient[BlocksData]
+	txClient    *GraphQLClient[TxsData]
 	subClient   *SubscriptionClient
 	db          *gorm.DB
 
@@ -19,7 +19,7 @@ type Syncer struct {
 	realtimeSvc *RealtimeSyncService
 }
 
-func NewSyncer(client *Client[BlocksData], txClient *Client[TxsData], subClient *SubscriptionClient, db *gorm.DB) *Syncer {
+func NewSyncer(client *GraphQLClient[BlocksData], txClient *GraphQLClient[TxsData], subClient *SubscriptionClient, db *gorm.DB) *Syncer {
 	syncer := &Syncer{
 		blockClient: client,
 		txClient:    txClient,
