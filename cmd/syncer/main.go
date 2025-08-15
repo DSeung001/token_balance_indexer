@@ -1,30 +1,56 @@
-// cmd/syncer/main.go
 package main
 
 import (
 	"context"
-	"fmt"
+	"flag"
+	"github.com/joho/godotenv"
 	"log"
 
+	"gn-indexer/internal/db"
 	"gn-indexer/internal/indexer"
 )
 
+func init() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("no .env file found, continuing...")
+	}
+}
+
 func main() {
+	// flag: command line standardization
+	var (
+		fromHeight = flag.Int("from", 0, "from block height")
+		toHeight   = flag.Int("to", 0, "to block height")
+		continuous = flag.Bool("continuous", false, "continuous mode")
+	)
+	flag.Parse()
+
+	// db connect
+	gormDb := db.MustConnect()
+
 	ctx := context.Background()
 
 	// cliBlocks: Block client
 	cliBlocks := indexer.NewClient[indexer.BlocksData]("https://indexer.onbloc.xyz/graphql/query")
-	var bd indexer.BlocksData
-	if err := cliBlocks.Do(ctx, indexer.QBlocks, map[string]interface{}{"gt": 0, "lt": 1000}, &bd); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("blocks fetched: %d\n", len(bd.GetBlocks))
 
 	// cliTxs: Transaction client
 	cliTxs := indexer.NewClient[indexer.TxsData]("https://indexer.onbloc.xyz/graphql/query")
-	var td indexer.TxsData
-	if err := cliTxs.Do(ctx, indexer.QTxs, map[string]interface{}{"gt": 0, "lt": 1000, "imax": 1000}, &td); err != nil {
-		log.Fatal(err)
+
+	// new syncer
+	syncer := indexer.NewSyncer(cliBlocks, cliTxs, gormDb)
+
+	if *continuous {
+		// Todo continous mode
+		log.Println("continuous mode not implemented yet")
+	} else {
+		// one time sync
+		if *toHeight == 0 {
+			*toHeight = 1000 // default
+		}
+
+		if err := syncer.SyncRange(ctx, *fromHeight, *toHeight); err != nil {
+			log.Fatalf("failed to sync range: %v", err)
+		}
+		log.Println("sync completed successfully")
 	}
-	fmt.Printf("txs fetched: %d\n", len(td.GetTransactions))
 }

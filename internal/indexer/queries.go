@@ -25,3 +25,10 @@ query($gt:Int!, $lt:Int!, $imax:Int!){
     }
   }
 }`
+
+const QLatestBlock = `
+query {
+  getBlocks(where:{}, limit: 1, orderBy: {height: DESC}) {
+    hash height time num_txs total_txs
+  }
+}`
