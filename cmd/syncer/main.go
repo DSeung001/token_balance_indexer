@@ -5,6 +5,9 @@ import (
 	"flag"
 	"github.com/joho/godotenv"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"gn-indexer/internal/db"
 	"gn-indexer/internal/indexer"
@@ -17,11 +20,14 @@ func init() {
 }
 
 func main() {
+	const gqlEndpoint = "https://indexer.onbloc.xyz/graphql/query"
+	const wsEndpoint = "wss://indexer.onbloc.xyz/graphql/query"
+
 	// flag: command line standardization
 	var (
 		fromHeight = flag.Int("from", 0, "from block height")
 		toHeight   = flag.Int("to", 0, "to block height")
-		continuous = flag.Bool("continuous", false, "continuous mode")
+		realtime   = flag.Bool("realtime", false, "start realtime sync")
 	)
 	flag.Parse()
 
@@ -30,27 +36,50 @@ func main() {
 
 	ctx := context.Background()
 
-	// cliBlocks: Block client
-	cliBlocks := indexer.NewClient[indexer.BlocksData]("https://indexer.onbloc.xyz/graphql/query")
+	// http client
+	cliBlocks := indexer.NewClient[indexer.BlocksData](gqlEndpoint)
+	cliTxs := indexer.NewClient[indexer.TxsData](gqlEndpoint)
 
-	// cliTxs: Transaction client
-	cliTxs := indexer.NewClient[indexer.TxsData]("https://indexer.onbloc.xyz/graphql/query")
+	// websocket client
+	subClient := indexer.NewSubscriptionClient(wsEndpoint)
 
-	// new syncer
-	syncer := indexer.NewSyncer(cliBlocks, cliTxs, gormDb)
+	// sync
+	syncer := indexer.NewSyncer(cliBlocks, cliTxs, subClient, gormDb)
 
-	if *continuous {
-		// Todo continous mode
-		log.Println("continuous mode not implemented yet")
+	if *realtime {
+		// real-time synchronization
+		log.Println("starting realtime sync mode...")
+
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		// signal handling for gracefull shutdown
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		go func() {
+			sig := <-sigChan
+			log.Printf("received signal %v, shutting down gracefully...", sig)
+			cancel()
+		}()
+
+		if err := syncer.StartRealtimeSync(ctx); err != nil {
+			log.Fatalf("realtime sync failed: %v", err)
+		}
+
+		log.Println("realtime sync stopped")
 	} else {
-		// one time sync
+		// test/dev
 		if *toHeight == 0 {
 			*toHeight = 1000 // default
 		}
 
+		log.Printf("starting one-time sync from height %d to %d", *fromHeight, *toHeight)
+
 		if err := syncer.SyncRange(ctx, *fromHeight, *toHeight); err != nil {
 			log.Fatalf("failed to sync range: %v", err)
 		}
+
 		log.Println("sync completed successfully")
 	}
 }

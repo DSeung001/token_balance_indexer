@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"strings"
@@ -18,13 +20,6 @@ type Client[T any] struct {
 	httpc    *http.Client
 }
 
-func NewClient[T any](endpoint string) *Client[T] {
-	return &Client[T]{
-		Endpoint: endpoint,
-		httpc:    &http.Client{Timeout: 20 * time.Second},
-	}
-}
-
 type gqlReq struct {
 	Query     string                 `json:"query"`
 	Variables map[string]interface{} `json:"variables,omitempty"`
@@ -33,6 +28,24 @@ type gqlReq struct {
 type gqlResp[T any] struct {
 	Data   T             `json:"data"`
 	Errors []interface{} `json:"errors"`
+}
+
+type SubscriptionClient struct {
+	Endpoint string
+	conn     *websocket.Conn
+}
+
+func NewClient[T any](endpoint string) *Client[T] {
+	return &Client[T]{
+		Endpoint: endpoint,
+		httpc:    &http.Client{Timeout: 20 * time.Second},
+	}
+}
+
+func NewSubscriptionClient(endpoint string) *SubscriptionClient {
+	return &SubscriptionClient{
+		Endpoint: endpoint,
+	}
 }
 
 func (c *Client[T]) Do(ctx context.Context, query string, vars map[string]interface{}, out *T) error {
@@ -84,6 +97,108 @@ func (c *Client[T]) Do(ctx context.Context, query string, vars map[string]interf
 		return fmt.Errorf("graphql errors: %+v", r.Errors)
 	}
 	*out = r.Data
+	return nil
+}
+
+func (sc *SubscriptionClient) Connect(ctx context.Context) error {
+	if sc.conn != nil {
+		return nil
+	}
+
+	// open websocket
+	conn, _, err := websocket.DefaultDialer.DialContext(ctx, sc.Endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("websocket dial: %w", err)
+	}
+
+	sc.conn = conn
+	return nil
+}
+
+func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars map[string]interface{}, handler func(BlocksData) error) error {
+	if err := sc.Connect(ctx); err != nil {
+		return fmt.Errorf("connect websocket: %w", err)
+	}
+
+	// subscription request
+	subReq := gqlReq{
+		Query:     query,
+		Variables: vars,
+	}
+
+	if err := sc.conn.WriteJSON(subReq); err != nil {
+		return fmt.Errorf("write subscription request: %w", err)
+	}
+
+	// subscription response handling
+	go func() {
+		defer sc.conn.Close()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				var response gqlResp[BlocksData]
+				if err := sc.conn.ReadJSON(&response); err != nil {
+					log.Printf("read subscription response: %v", err)
+					return
+				}
+
+				if len(response.Errors) > 0 {
+					log.Printf("subscription errors: %+v", response.Errors)
+					continue
+				}
+
+				// handler
+				if err := handler(response.Data); err != nil {
+					log.Printf("handle subscription response: %v", err)
+				}
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (sc *SubscriptionClient) SubcribeOnce(ctx context.Context, query string, vars map[string]interface{}, handler func(BlocksData) error) error {
+	if err := sc.Connect(ctx); err != nil {
+		return fmt.Errorf("connect websocket: %w", err)
+	}
+
+	subReq := gqlReq{
+		Query:     query,
+		Variables: vars,
+	}
+
+	if err := sc.conn.WriteJSON(subReq); err != nil {
+		return fmt.Errorf("write subscription request: %w", err)
+	}
+
+	// once response
+	var response gqlResp[BlocksData]
+	if err := sc.conn.ReadJSON(&response); err != nil {
+		return fmt.Errorf("read subscription response: %w", err)
+	}
+
+	if len(response.Errors) > 0 {
+		return fmt.Errorf("subscription errors: %+v", response.Errors)
+	}
+
+	if err := handler(response.Data); err != nil {
+		log.Printf("handle subscription response: %v", err)
+	}
+
+	sc.conn.Close()
+	sc.conn = nil
+
+	return nil
+}
+
+func (sc *SubscriptionClient) Close() error {
+	if sc.conn != nil {
+		return sc.conn.Close()
+	}
 	return nil
 }
 

@@ -32,9 +32,9 @@ query($gt:Int!, $lt:Int!, $imax:Int!){
   }
 }`
 
-const QLatestBlock = `
-query {
-  getBlocks(where:{}, limit: 1, orderBy: {height: DESC}) {
+const SBlocks = `
+subscription {
+  getBlocks(where: {}) {
     hash height last_block_hash time num_txs total_txs
   }
 }`

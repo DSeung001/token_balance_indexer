@@ -10,24 +10,35 @@ import (
 )
 
 type Syncer struct {
-	client   *Client[BlocksData]
-	txClient *Client[TxsData]
-	db       *gorm.DB
+	blockClient *Client[BlocksData]
+	txClient    *Client[TxsData]
+	subClient   *SubscriptionClient
+	db          *gorm.DB
+
+	backfillSvc *BackfillService
+	realtimeSvc *RealtimeSyncService
 }
 
-func NewSyncer(client *Client[BlocksData], txClient *Client[TxsData], db *gorm.DB) *Syncer {
-	return &Syncer{
-		client:   client,
-		txClient: txClient,
-		db:       db,
+func NewSyncer(client *Client[BlocksData], txClient *Client[TxsData], subClient *SubscriptionClient, db *gorm.DB) *Syncer {
+	syncer := &Syncer{
+		blockClient: client,
+		txClient:    txClient,
+		subClient:   subClient,
+		db:          db,
 	}
+
+	// service init
+	syncer.backfillSvc = &BackfillService{syncer: syncer}
+	syncer.realtimeSvc = &RealtimeSyncService{syncer: syncer, subClient: subClient}
+
+	return syncer
 }
 
 // SyncBlocks block range synchronization
 func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error {
 	// get block data
 	var bd BlocksData
-	if err := s.client.Do(ctx, QBlocks, map[string]interface{}{
+	if err := s.blockClient.Do(ctx, QBlocks, map[string]interface{}{
 		"gt": fromHeight,
 		"lt": toHeight,
 	}, &bd); err != nil {
@@ -156,5 +167,31 @@ func (s *Syncer) SyncRange(ctx context.Context, fromHeight, toHeight int) error 
 	if err := s.SyncTxs(ctx, fromHeight, toHeight); err != nil {
 		return fmt.Errorf("failed to sync txs: %w", err)
 	}
+	return nil
+}
+
+func (s *Syncer) StartRealtimeSync(ctx context.Context) error {
+	return s.realtimeSvc.Start(ctx)
+}
+
+func (s *Syncer) BackfillToLatest(ctx context.Context) error {
+	return s.backfillSvc.BackfillToLatest(ctx)
+}
+
+// handleRealtimeBlock : Real-time block processing only method
+func (s *Syncer) handleRealtimeBlock(ctx context.Context, block Block) error {
+	// save block
+	if err := s.saveBlock(ctx, block); err != nil {
+		return fmt.Errorf("save realtime block: %w", err)
+	}
+
+	// transaction sync
+	if block.NumTxs > 0 {
+		if err := s.SyncTxs(ctx, block.NumTxs, block.Height); err != nil {
+			return fmt.Errorf("sync txs: %w", err)
+		}
+	}
+
+	log.Printf("realtime sync: block %d saved", block.Height)
 	return nil
 }
