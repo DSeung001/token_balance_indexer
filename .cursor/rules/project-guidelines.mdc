@@ -7,6 +7,30 @@ alwaysApply: true
 ## 기본 룰
 주석은 영어로 직관적이게 달아줘
 
+## 주요 기능 요구사항
+### **1. Block Synchronizer (Producer)**
+
+- 블록 및 트랜잭션을 수신하여 PostgreSQL에 저장
+    - 테이블 스키마는 자유롭게 설계
+- 서버 시작 시 누락된 블록 범위를 스캔하여 백필 처리
+- 트랜잭션 내 토큰 발행, 소멸, 전송 **이벤트**를 파싱하여 Queue(SQS)에 전송
+
+### **2. Event Processor (Consumer)**
+
+- Queue에서 수신한 이벤트 기반으로 잔액 계산 수행
+    - 토큰 발행, 소멸, 전송 이벤트에 따라 잔액 계산
+- 계산된 잔액 정보를 DBMS에 저장
+- 대량 처리 또는 병렬 소비가 가능한 구조 고려
+
+### **3. Balance API (REST API Server)**
+
+-  API로 블록, 트랜잭션, 이벤트, 토큰, 잔고를 볼 수 있음
+- 만들 endpoint 
+    - /tokens/balances?address={address}
+    - /tokens/{tokenPath}/balances?address={address}
+    - /tokens/transfer-history?address={address}
+
+
 ## 📁 프로젝트 폴더 구조 분석
 
 ### 🏗️ 루트 레벨 구조
