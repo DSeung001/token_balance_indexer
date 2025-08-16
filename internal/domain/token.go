@@ -1,5 +1,7 @@
 package domain
 
+// Todo Separated into models and domains
+
 // Token requests token information
 type Token struct {
 	Path     string `json:"token_path" gorm:"primaryKey;column:token_path"`

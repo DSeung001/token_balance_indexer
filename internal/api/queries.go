@@ -1,4 +1,4 @@
-package indexer
+package api
 
 const QBlocks = `
 query($gt:Int!, $lt:Int!){

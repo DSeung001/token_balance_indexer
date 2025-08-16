@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"fmt"
+	"gn-indexer/internal/api"
 	"log"
 	"time"
 
@@ -34,7 +35,7 @@ func (rs *RealtimeSyncService) startSubscription(ctx context.Context) error {
 		return ctx.Err()
 	}
 
-	return rs.subClient.Subscribe(ctx, SBlocks, nil, rs.handleSubscriptionData)
+	return rs.subClient.Subscribe(ctx, api.SBlocks, nil, rs.handleSubscriptionData)
 }
 
 func (rs *RealtimeSyncService) handleSubscriptionData(data BlocksData) error {

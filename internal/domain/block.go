@@ -2,6 +2,8 @@ package domain
 
 import "time"
 
+// Todo Separated into models and domains
+
 // Block represents a blockchain block
 type Block struct {
 	Hash          string    `json:"hash" gorm:"primaryKey;column:hash"`

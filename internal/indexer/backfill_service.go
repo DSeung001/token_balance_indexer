@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"fmt"
+	"gn-indexer/internal/api"
 	"log"
 )
 
@@ -38,7 +39,7 @@ func (bs *BackfillService) BackfillToLatest(ctx context.Context) error {
 func (bs *BackfillService) getCurrentBlockHeight(ctx context.Context) (int, error) {
 	var currentHeight int
 
-	err := bs.syncer.subClient.SubscribeOnce(ctx, SBlocks, nil, func(data BlocksData) error {
+	err := bs.syncer.subClient.SubscribeOnce(ctx, api.SBlocks, nil, func(data BlocksData) error {
 		if len(data.GetBlocks) > 0 {
 			currentHeight = data.GetBlocks[0].Height
 		}

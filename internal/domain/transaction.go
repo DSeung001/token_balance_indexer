@@ -1,5 +1,7 @@
 package domain
 
+// Todo Separated into models and domains
+
 // TransactionMessage represents a transaction message
 type TransactionMessage struct {
 	Route string      `json:"route"`

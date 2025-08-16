@@ -3,11 +3,22 @@ package indexer
 import (
 	"context"
 	"fmt"
+	"gn-indexer/internal/api"
 	"log"
 
 	"gn-indexer/internal/domain"
 	"gn-indexer/internal/repository"
 )
+
+// BlocksData represents block query response data
+type BlocksData struct {
+	GetBlocks []domain.Block `json:"getBlocks"`
+}
+
+// TxsData represents transaction query response data
+type TxsData struct {
+	GetTransactions []domain.Transaction `json:"getTransactions"`
+}
 
 type Syncer struct {
 	blockClient *GraphQLClient[BlocksData]
@@ -48,7 +59,7 @@ func NewSyncer(
 // SyncBlocks synchronizes blocks within a height range
 func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error {
 	var bd BlocksData
-	if err := s.blockClient.Do(ctx, QBlocks, map[string]interface{}{
+	if err := s.blockClient.Do(ctx, api.QBlocks, map[string]interface{}{
 		"gt": fromHeight,
 		"lt": toHeight,
 	}, &bd); err != nil {
@@ -68,7 +79,7 @@ func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error
 // SyncTxs synchronizes transactions within a height range
 func (s *Syncer) SyncTxs(ctx context.Context, fromHeight, toHeight int) error {
 	var td TxsData
-	if err := s.txClient.Do(ctx, QTxs, map[string]interface{}{
+	if err := s.txClient.Do(ctx, api.QTxs, map[string]interface{}{
 		"gt":   fromHeight,
 		"lt":   toHeight,
 		"imax": 1000,
