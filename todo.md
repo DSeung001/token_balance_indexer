@@ -22,3 +22,4 @@
 2. syncer에 너무 많은 기능이 부담, msa 위반
 3. internal/indexer/realtime_sync_service.go, 와 internal/indexer/syncer.go의 파일구조가 이상함
 4. internal/indexer/subscription_client.go에서 ID 분리해서 구분처리
+5. 도메인을 모델과 도메인 분리

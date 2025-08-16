@@ -5,12 +5,12 @@ import (
 	"flag"
 	"github.com/joho/godotenv"
 	"gn-indexer/internal/config"
+	"gn-indexer/internal/indexer"
+	"gn-indexer/internal/repository"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"gn-indexer/internal/indexer"
 )
 
 func init() {
@@ -31,7 +31,7 @@ func main() {
 	)
 	flag.Parse()
 
-	// db connect
+	// database connection
 	connConfig := config.NewDatabaseConfig()
 	gormDb, err := connConfig.Connect()
 	if err != nil {
@@ -47,8 +47,18 @@ func main() {
 	// websocket client
 	subClient := indexer.NewSubscriptionClient(wsEndpoint)
 
-	// sync
-	syncer := indexer.NewSyncer(cliBlocks, cliTxs, subClient, gormDb)
+	// create repositories directly
+	blockRepo := repository.NewBlockRepository(gormDb)
+	transactionRepo := repository.NewTransactionRepository(gormDb)
+
+	// sync with repositories
+	syncer := indexer.NewSyncer(
+		cliBlocks,
+		cliTxs,
+		subClient,
+		blockRepo,
+		transactionRepo,
+	)
 
 	if *realtime {
 		// real-time synchronization
