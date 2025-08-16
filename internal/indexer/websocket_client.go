@@ -145,11 +145,11 @@ func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars 
 				if err := sc.conn.ReadJSON(&response); err != nil {
 					log.Printf("Subscribe: read subscription response error: %v", err)
 
-					// 연결이 끊어진 경우 재연결 시도
+					// Attempt to reconnect if connection is lost
 					if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 						log.Printf("Subscribe: connection closed, attempting to reconnect...")
 
-						// 잠시 대기 후 재연결 시도
+						// Wait briefly before attempting to reconnect
 						time.Sleep(2 * time.Second)
 
 						if err := sc.reconnect(ctx); err != nil {
@@ -157,7 +157,7 @@ func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars 
 							return
 						}
 
-						// 재연결 후 구독 재시작
+						// Restart subscription after reconnection
 						if err := sc.resubscribe(ctx, query, vars); err != nil {
 							log.Printf("Subscribe: resubscription failed: %v", err)
 							return

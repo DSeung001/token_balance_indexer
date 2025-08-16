@@ -99,7 +99,7 @@ func main() {
 
 		log.Println("shutdown completed")
 	} else if *integrity {
-		// 데이터 무결성 체크 및 수정 (높이 1부터)
+		// Data integrity check and fix (from height 1)
 		log.Println("starting data integrity check and fix from height 1...")
 
 		dataIntegritySvc := service.NewDataIntegrityService(syncer)
@@ -111,9 +111,17 @@ func main() {
 		log.Println("data integrity check and fix completed successfully")
 		return
 	} else if *fromHeight > 0 || *toHeight > 0 {
-		// 특정 범위 동기화
+		// Specific range synchronization
+		if *fromHeight == 0 {
+			*fromHeight = 1 // Set default value to 1
+		}
 		if *toHeight == 0 {
 			*toHeight = 1000 // default
+		}
+
+		// Add validation check
+		if *fromHeight > *toHeight {
+			log.Fatalf("invalid range: from height (%d) cannot be greater than to height (%d)", *fromHeight, *toHeight)
 		}
 
 		log.Printf("starting one-time sync from height %d to %d", *fromHeight, *toHeight)
@@ -124,11 +132,11 @@ func main() {
 
 		log.Println("sync completed successfully")
 	} else {
-		// 사용법 안내
+		// Usage guide
 		log.Println("Usage:")
 		log.Println("  --integrity: Check and fix data integrity from height 1")
 		log.Println("  --realtime: Start realtime sync mode")
-		log.Println("  --from <height> --to <height>: Sync specific range")
+		log.Println("  --from <height> --to <height>: Sync specific range (from defaults to 1)")
 		log.Println("  No flags: Show this help message")
 	}
 }

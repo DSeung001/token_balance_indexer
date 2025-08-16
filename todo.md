@@ -1,11 +1,3 @@
 1. internal/indexer/subscription_client.go에서 ID 분리해서 구분처리
-2. 도메인을 모델과 도메인 분리
-3. 백필 시스템에서 누락된 데이터 처리
- - 추가로 height가 이상해
-4. orchestrated 명칭의 직관성 붖고
-5. transcation은 저장이 안되고 있음
-6. 백필할 떄 중단에도 db와 비교해서 db에 가장 높은 height 부터 저장
-7. 중간 중간 누락된 데이터 어떻게 하지? (백필로써 가장 중요한 기능)
-   - 별도로 빼야하나??
-   - 누락된 데이터들은 따로 저장해서, 별도로 뺴서 폴링 해야하나, 레디스도 되고
-8. SQS를 어떻게 저장하지 일단 큐부터 
+2. transcation은 저장이 안되고 있음
+3. transaction의 이벤트 파싱

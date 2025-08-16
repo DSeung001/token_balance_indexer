@@ -103,10 +103,12 @@ func (s *Syncer) GetLastSyncedHeight(ctx context.Context) (int, error) {
 
 // SyncRange synchronizes both blocks and transactions within a height range
 func (s *Syncer) SyncRange(ctx context.Context, fromHeight, toHeight int) error {
-	if err := s.SyncBlocks(ctx, fromHeight, toHeight); err != nil {
+	// Call SyncBlocks with fromHeight-1 to include fromHeight
+	if err := s.SyncBlocks(ctx, fromHeight-1, toHeight); err != nil {
 		return fmt.Errorf("failed to sync blocks: %w", err)
 	}
-	if err := s.SyncTxs(ctx, fromHeight, toHeight); err != nil {
+	// Call SyncTxs with fromHeight-1 to include fromHeight
+	if err := s.SyncTxs(ctx, fromHeight-1, toHeight); err != nil {
 		return fmt.Errorf("failed to sync transactions: %w", err)
 	}
 	return nil

@@ -40,7 +40,14 @@ func (dis *DataIntegrityService) CheckAndFixDataIntegrity(ctx context.Context) e
 	}
 
 	if dbHighestHeight == 0 {
-		log.Printf("DataIntegrityService: no blocks in DB, starting from height 1")
+		log.Printf("DataIntegrityService: no blocks in DB, starting initial sync from height 1")
+		// Perform initial sync if database is empty
+		log.Printf("DataIntegrityService: performing initial sync from height 1 to 1000")
+		if err := dis.syncRangeWithChunks(ctx, 1, 1000); err != nil {
+			return fmt.Errorf("initial sync failed: %w", err)
+		}
+		log.Printf("DataIntegrityService: initial sync completed successfully")
+		return nil
 	} else {
 		log.Printf("DataIntegrityService: DB has blocks up to height %d, will check and fix integrity from height 1", dbHighestHeight)
 	}
