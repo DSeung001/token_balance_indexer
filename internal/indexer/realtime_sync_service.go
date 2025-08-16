@@ -3,6 +3,8 @@ package indexer
 import (
 	"context"
 	"fmt"
+
+	"gn-indexer/internal/domain"
 )
 
 type RealtimeSyncService struct {
@@ -32,7 +34,7 @@ func (rs *RealtimeSyncService) handleSubscriptionData(data BlocksData) error {
 	return nil
 }
 
-func (rs *RealtimeSyncService) processBlock(block Block) error {
+func (rs *RealtimeSyncService) processBlock(block domain.Block) error {
 	// block processing
 	return rs.syncer.handleRealtimeBlock(context.Background(), block)
 }

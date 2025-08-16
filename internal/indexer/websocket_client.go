@@ -150,7 +150,7 @@ func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars 
 						// Todo: re connecting logic
 					}
 				case GQL_CONNECTION_ERROR:
-					// 연결 에러 처리
+					// connection error handling
 					if payload, ok := response.Payload["message"]; ok {
 						log.Printf("connection error: %v", payload)
 					} else {

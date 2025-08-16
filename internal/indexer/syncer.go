@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 
+	"gn-indexer/internal/domain"
 	"gorm.io/gorm"
 )
 
@@ -34,7 +35,7 @@ func NewSyncer(client *GraphQLClient[BlocksData], txClient *GraphQLClient[TxsDat
 	return syncer
 }
 
-// SyncBlocks block range synchronization
+// SyncBlocks synchronizes blocks within a height range
 func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error {
 	// get block data
 	var bd BlocksData
@@ -56,7 +57,7 @@ func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error
 	return nil
 }
 
-// SyncTxs Transaction range synchronization
+// SyncTxs synchronizes transactions within a height range
 func (s *Syncer) SyncTxs(ctx context.Context, fromHeight, toHeight int) error {
 	// get transaction data
 	var td TxsData
@@ -79,10 +80,10 @@ func (s *Syncer) SyncTxs(ctx context.Context, fromHeight, toHeight int) error {
 	return nil
 }
 
-// saveBlock block save to db (duplication check)
-func (s *Syncer) saveBlock(ctx context.Context, block Block) error {
+// saveBlock saves block to database with duplication check
+func (s *Syncer) saveBlock(ctx context.Context, block domain.Block) error {
 	var count int64
-	if err := s.db.WithContext(ctx).Model(&Block{}).Where("hash = ?", block.Hash).Count(&count).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&domain.Block{}).Where("hash = ?", block.Hash).Count(&count).Error; err != nil {
 		return fmt.Errorf("failed to check block existence: %w", err)
 	}
 	if count > 0 {
@@ -97,11 +98,11 @@ func (s *Syncer) saveBlock(ctx context.Context, block Block) error {
 	return nil
 }
 
-// saveTxs transaction save to db (duplication check)
-func (s *Syncer) saveTxs(ctx context.Context, tx Tx) error {
+// saveTxs saves transaction to database with duplication check
+func (s *Syncer) saveTxs(ctx context.Context, tx domain.Transaction) error {
 	// duplication check
 	var count int64
-	if err := s.db.WithContext(ctx).Model(&Tx{}).Where("hash = ?", tx.Hash).Count(&count).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&domain.Transaction{}).Where("hash = ?", tx.Hash).Count(&count).Error; err != nil {
 		return fmt.Errorf("failed to check transaction existence: %w", err)
 	}
 	if count > 0 {
@@ -148,15 +149,17 @@ func (s *Syncer) saveTxs(ctx context.Context, tx Tx) error {
 	return nil
 }
 
+// GetLastSyncedHeight returns the height of the last synchronized block
 func (s *Syncer) GetLastSyncedHeight(ctx context.Context) (int, error) {
 	var lastHeight int
-	err := s.db.WithContext(ctx).Model(&Block{}).Select("COALESCE(MAX(height), 0)").Scan(&lastHeight).Error
+	err := s.db.WithContext(ctx).Model(&domain.Block{}).Select("COALESCE(MAX(height), 0)").Scan(&lastHeight).Error
 	if err != nil {
 		return 0, fmt.Errorf("failed to get last block height: %w", err)
 	}
 	return lastHeight, nil
 }
 
+// SyncRange synchronizes both blocks and transactions within a height range
 func (s *Syncer) SyncRange(ctx context.Context, fromHeight, toHeight int) error {
 	// block sync
 	if err := s.SyncBlocks(ctx, fromHeight, toHeight); err != nil {
@@ -170,16 +173,18 @@ func (s *Syncer) SyncRange(ctx context.Context, fromHeight, toHeight int) error 
 	return nil
 }
 
+// StartRealtimeSync starts real-time synchronization
 func (s *Syncer) StartRealtimeSync(ctx context.Context) error {
 	return s.realtimeSvc.Start(ctx)
 }
 
+// BackfillToLatest performs backfill to the latest block
 func (s *Syncer) BackfillToLatest(ctx context.Context) error {
 	return s.backfillSvc.BackfillToLatest(ctx)
 }
 
-// handleRealtimeBlock : Real-time block processing only method
-func (s *Syncer) handleRealtimeBlock(ctx context.Context, block Block) error {
+// handleRealtimeBlock processes real-time block data
+func (s *Syncer) handleRealtimeBlock(ctx context.Context, block domain.Block) error {
 	// save block
 	if err := s.saveBlock(ctx, block); err != nil {
 		return fmt.Errorf("save realtime block: %w", err)

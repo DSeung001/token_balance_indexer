@@ -129,7 +129,7 @@ aws --endpoint-url="${SQS_URL}" sqs purge-queue --queue-url "${SQS_URL}/${ACCOUN
 export DATABASE_URL="postgres://app:app@localhost:5432/indexer?sslmode=disable"
 export SQS_ENDPOINT="http://localhost:4566"
 export SQS_QUEUE_URL="http://localhost:4566/000000000000/${SQS_QUEUE_NAME}"
-# go run ./cmd/api  # 또는 docker compose 서비스로 기동
+# go run ./cmd/balance-api  # 또는 docker compose 서비스로 기동
 ```
 
 ---
@@ -173,5 +173,5 @@ aws --endpoint-url="${SQS_URL}" sqs create-queue --queue-name "${QUEUE_NAME}"
 export DATABASE_URL="postgres://app:app@localhost:5432/indexer?sslmode=disable"
 export SQS_ENDPOINT="http://localhost:4566"
 export SQS_QUEUE_URL="http://localhost:4566/000000000000/${QUEUE_NAME}"
-# go run ./cmd/api
+# go run ./cmd/balance-api
 ```
