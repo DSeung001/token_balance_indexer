@@ -1,3 +1,7 @@
-1. internal/indexer/subscription_client.go에서 ID 분리해서 구분처리
-2. transcation은 저장이 안되고 있음
-3. transaction의 이벤트 파싱
+1. token이 뭔지
+2. 현재 도메인 구조가 맞는지
+3. 밸런스 어떻게 저장할지
+4. 안쓰는 테이블이 뭐가 있는지
+5. rest api 구조
+6. 컨슈머 구조
+7. sqs 연결

@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 // Todo Separated into models and domains
 
 // Token requests token information
@@ -20,9 +22,18 @@ type Balance struct {
 
 // Transfer represents a token transfer event
 type Transfer struct {
-	FromAddress string `json:"from_address"`
-	ToAddress   string `json:"to_address"`
-	TokenPath   string `json:"token_path"`
-	Amount      int64  `json:"amount"`
-	BlockHeight int64  `json:"block_height"`
+	ID          int64     `json:"id" gorm:"primaryKey;column:id"`
+	TxHash      string    `json:"tx_hash" gorm:"column:tx_hash"`
+	EventIndex  int       `json:"event_index" gorm:"column:event_index"`
+	TokenPath   string    `json:"token_path" gorm:"column:token_path"`
+	FromAddress string    `json:"from_address" gorm:"column:from_address"`
+	ToAddress   string    `json:"to_address" gorm:"column:to_address"`
+	Amount      int64     `json:"amount" gorm:"column:amount"`
+	BlockHeight int64     `json:"block_height" gorm:"column:block_height"`
+	CreatedAt   time.Time `json:"created_at" gorm:"column:created_at"`
+}
+
+// TableName returns the table name for Transfer
+func (Transfer) TableName() string {
+	return "indexer.transfers"
 }
