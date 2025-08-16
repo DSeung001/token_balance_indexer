@@ -1,0 +1,321 @@
+---
+alwaysApply: true
+---
+
+# GN-Indexer 프로젝트 구조 분석 및 Block-Syncer 명령어 가이드
+
+## 기본 룰
+주석은 영어로 직관적이게 달아줘
+
+## 📁 프로젝트 폴더 구조 분석
+
+### 🏗️ 루트 레벨 구조
+```
+gn-indexer/
+├── cmd/                    # 메인 애플리케이션 진입점
+├── db/                     # 데이터베이스 관련 파일
+├── docs/                   # 프로젝트 문서
+├── internal/               # 내부 패키지들
+├── main.go                 # 루트 메인 파일
+├── go.mod                  # Go 모듈 정의
+├── go.sum                  # Go 모듈 체크섬
+├── docker-compose.yml      # Docker 환경 설정
+├── infra.md                # 인프라 문서
+├── runbook.md              # 운영 가이드
+└── todo.md                 # 할 일 목록
+```
+
+### 🚀 cmd/ - 애플리케이션 진입점
+```
+cmd/
+├── block-syncer/           # 블록 동기화 서비스 (Producer)
+│   └── main.go            # 블록 동기화 메인 로직
+├── balance-api/            # 잔액 조회 API 서비스
+│   └── main.go            # REST API 서버
+└── event-processor/        # 이벤트 처리 서비스 (Consumer)
+    └── main.go            # 이벤트 처리 로직
+```
+
+**특징**: MSA 아키텍처의 각 서비스를 독립적으로 실행할 수 있는 진입점들을 제공합니다.
+
+### 🔧 internal/ - 핵심 비즈니스 로직
+```
+internal/
+├── api/                    # API 관련 인터페이스 및 쿼리
+├── config/                 # 설정 관리 (데이터베이스 등)
+├── domain/                 # 도메인 모델 (Block, Token, Transaction)
+├── indexer/                # 블록체인 인덱싱 관련 클라이언트
+├── parsing/                # 트랜잭션 이벤트 파싱
+├── queue/                  # 메시지 큐 처리
+├── repository/             # 데이터 접근 계층
+└── service/                # 비즈니스 로직 서비스
+```
+
+**특징**:
+- **domain/**: 블록체인의 핵심 개념들을 Go 구조체로 모델링
+- **indexer/**: GraphQL 클라이언트, WebSocket 클라이언트, 동기화 로직
+- **service/**: 블록 동기화, 백필, 실시간 동기화, 데이터 무결성 검사 등
+- **repository/**: PostgreSQL 데이터베이스 접근 로직
+
+### 🗄️ db/ - 데이터베이스 관리
+```
+db/
+├── init/                   # 초기 설정 스크립트
+│   └── 01-setup-permissions.sql
+└── migrations/             # 데이터베이스 마이그레이션
+    ├── 0001_init.up.sql   # 초기 테이블 생성
+    ├── 0001_init.down.sql # 롤백 스크립트
+    ├── 0002_indexes.up.sql # 인덱스 생성
+    └── 0002_indexes.down.sql # 인덱스 롤백
+```
+
+**특징**: PostgreSQL 데이터베이스의 스키마 변경을 체계적으로 관리합니다.
+
+### 📚 docs/ - 프로젝트 문서
+```
+docs/
+├── block_sync_strategy.md  # 블록 동기화 전략
+├── db_table.md            # 데이터베이스 테이블 스키마
+├── folder_structure.md    # 폴더 구조 설명
+├── graphql.md             # GraphQL API 가이드
+└── task.md                # 과제 요구사항
+```
+
+## 🎯 Block-Syncer 명령어 개념 및 동작 방식
+
+### 📋 기본 명령어 구조
+```bash
+go run cmd/block-syncer/main.go [옵션]
+```
+
+### 🔧 사용 가능한 옵션들
+
+#### 1. **범위 동기화 (Range Sync)**
+```bash
+# from과 to 모두 지정
+go run cmd/block-syncer/main.go --from 1000 --to 2000
+
+# to만 지정 (1부터 to까지)
+go run cmd/block-syncer/main.go --to 5000
+
+# from만 지정 (경고 메시지 출력)
+go run cmd/block-syncer/main.go --from 1000
+```
+
+**동작 방식**:
+- `--from <height>`: 시작 블록 높이 (기본값: 1)
+- `--to <height>`: 종료 블록 높이 (기본값: 1000)
+- `from > to`인 경우 오류 발생
+- 지정된 범위의 블록과 트랜잭션을 일회성으로 동기화
+
+#### 2. **실시간 동기화 (Realtime Sync)**
+```bash
+go run cmd/block-syncer/main.go --realtime
+```
+
+**동작 방식**:
+- WebSocket을 통해 새로운 블록 이벤트를 실시간으로 수신
+- 서비스가 계속 실행되며 새로운 블록을 자동으로 처리
+- `Ctrl+C`로 정상 종료 가능
+
+#### 3. **데이터 무결성 검사 및 복구 (Integrity Check)**
+```bash
+go run cmd/block-syncer/main.go --integrity
+```
+
+**동작 방식**:
+- **매번 실행 시마다** height 1부터 현재 DB의 최고 height까지 검사
+- 누락된 블록이나 트랜잭션이 있는지 확인
+- 누락된 데이터가 발견되면 자동으로 복구
+- 청크 단위(1000개 블록)로 처리하여 GraphQL 제한 회피
+
+### 🔄 동기화 모드별 특징
+
+| 모드 | 실행 방식 | 데이터 범위 | 지속성 | 용도 |
+|------|-----------|-------------|---------|------|
+| **Range** | 일회성 | 지정된 범위 | ❌ | 특정 기간 데이터 수집 |
+| **Realtime** | 지속적 | 실시간 이벤트 | ✅ | 운영 환경 실시간 동기화 |
+| **Integrity** | 일회성 | 1 ~ 최고 height | ❌ | 데이터 무결성 검증 및 복구 |
+
+### ⚠️ 주의사항
+
+1. **from만 지정 시**: 경고 메시지가 출력되며 기본값 1이 사용됩니다.
+2. **데이터 무결성 검사**: 실행할 때마다 전체 범위를 검사하므로 시간이 오래 걸릴 수 있습니다.
+3. **실시간 모드**: 백그라운드에서 백필과 실시간 동기화를 동시에 실행합니다.
+4. **메모리 사용량**: 대량의 블록 데이터를 처리할 때 메모리 사용량에 주의해야 합니다.
+
+### 🚀 권장 사용 시나리오
+
+#### **개발/테스트 환경**
+- `--from 1 --to 1000` (소량 데이터로 테스트)
+
+#### **실제 서버 적용 시 (권장 순서)**
+1. **실시간 동기화 시작**: `--realtime` (지속적인 실시간 동기화)
+2. **데이터 무결성 검사 및 복구**: `--integrity` (누락된 데이터 자동 복구)
+3. **정기적인 무결성 검사**: 주기적으로 `--integrity` 실행하여 데이터 품질 유지
+
+#### **기타 시나리오**
+- **데이터 검증**: `--integrity` (정기적인 무결성 검사)
+- **특정 기간 분석**: `--from 10000 --to 20000` (특정 기간 데이터 수집)
+
+#### **⚠️ 실제 서버 운영 시 주의사항**
+- 실시간 동기화를 먼저 시작하여 새로운 블록 데이터 수집을 중단하지 않도록 함
+- 데이터 무결성 검사는 실시간 동기화가 안정화된 후 실행
+- 무결성 검사 결과 누락된 데이터가 있으면 자동으로 복구되어 완벽한 데이터셋 구성
+# GN-Indexer 프로젝트 구조 분석 및 Block-Syncer 명령어 가이드
+
+## 📁 프로젝트 폴더 구조 분석
+
+### 🏗️ 루트 레벨 구조
+```
+gn-indexer/
+├── cmd/                    # 메인 애플리케이션 진입점
+├── db/                     # 데이터베이스 관련 파일
+├── docs/                   # 프로젝트 문서
+├── internal/               # 내부 패키지들
+├── main.go                 # 루트 메인 파일
+├── go.mod                  # Go 모듈 정의
+├── go.sum                  # Go 모듈 체크섬
+├── docker-compose.yml      # Docker 환경 설정
+├── infra.md                # 인프라 문서
+├── runbook.md              # 운영 가이드
+└── todo.md                 # 할 일 목록
+```
+
+### 🚀 cmd/ - 애플리케이션 진입점
+```
+cmd/
+├── block-syncer/           # 블록 동기화 서비스 (Producer)
+│   └── main.go            # 블록 동기화 메인 로직
+├── balance-api/            # 잔액 조회 API 서비스
+│   └── main.go            # REST API 서버
+└── event-processor/        # 이벤트 처리 서비스 (Consumer)
+    └── main.go            # 이벤트 처리 로직
+```
+
+**특징**: MSA 아키텍처의 각 서비스를 독립적으로 실행할 수 있는 진입점들을 제공합니다.
+
+### 🔧 internal/ - 핵심 비즈니스 로직
+```
+internal/
+├── api/                    # API 관련 인터페이스 및 쿼리
+├── config/                 # 설정 관리 (데이터베이스 등)
+├── domain/                 # 도메인 모델 (Block, Token, Transaction)
+├── indexer/                # 블록체인 인덱싱 관련 클라이언트
+├── parsing/                # 트랜잭션 이벤트 파싱
+├── queue/                  # 메시지 큐 처리
+├── repository/             # 데이터 접근 계층
+└── service/                # 비즈니스 로직 서비스
+```
+
+**특징**:
+- **domain/**: 블록체인의 핵심 개념들을 Go 구조체로 모델링
+- **indexer/**: GraphQL 클라이언트, WebSocket 클라이언트, 동기화 로직
+- **service/**: 블록 동기화, 백필, 실시간 동기화, 데이터 무결성 검사 등
+- **repository/**: PostgreSQL 데이터베이스 접근 로직
+
+### 🗄️ db/ - 데이터베이스 관리
+```
+db/
+├── init/                   # 초기 설정 스크립트
+│   └── 01-setup-permissions.sql
+└── migrations/             # 데이터베이스 마이그레이션
+    ├── 0001_init.up.sql   # 초기 테이블 생성
+    ├── 0001_init.down.sql # 롤백 스크립트
+    ├── 0002_indexes.up.sql # 인덱스 생성
+    └── 0002_indexes.down.sql # 인덱스 롤백
+```
+
+**특징**: PostgreSQL 데이터베이스의 스키마 변경을 체계적으로 관리합니다.
+
+### 📚 docs/ - 프로젝트 문서
+```
+docs/
+├── block_sync_strategy.md  # 블록 동기화 전략
+├── db_table.md            # 데이터베이스 테이블 스키마
+├── folder_structure.md    # 폴더 구조 설명
+├── graphql.md             # GraphQL API 가이드
+└── task.md                # 과제 요구사항
+```
+
+## 🎯 Block-Syncer 명령어 개념 및 동작 방식
+
+### 📋 기본 명령어 구조
+```bash
+go run cmd/block-syncer/main.go [옵션]
+```
+
+### 🔧 사용 가능한 옵션들
+
+#### 1. **범위 동기화 (Range Sync)**
+```bash
+# from과 to 모두 지정
+go run cmd/block-syncer/main.go --from 1000 --to 2000
+
+# to만 지정 (1부터 to까지)
+go run cmd/block-syncer/main.go --to 5000
+
+# from만 지정 (경고 메시지 출력)
+go run cmd/block-syncer/main.go --from 1000
+```
+
+**동작 방식**:
+- `--from <height>`: 시작 블록 높이 (기본값: 1)
+- `--to <height>`: 종료 블록 높이 (기본값: 1000)
+- `from > to`인 경우 오류 발생
+- 지정된 범위의 블록과 트랜잭션을 일회성으로 동기화
+
+#### 2. **실시간 동기화 (Realtime Sync)**
+```bash
+go run cmd/block-syncer/main.go --realtime
+```
+
+**동작 방식**:
+- WebSocket을 통해 새로운 블록 이벤트를 실시간으로 수신
+- 서비스가 계속 실행되며 새로운 블록을 자동으로 처리
+- `Ctrl+C`로 정상 종료 가능
+
+#### 3. **데이터 무결성 검사 및 복구 (Integrity Check)**
+```bash
+go run cmd/block-syncer/main.go --integrity
+```
+
+**동작 방식**:
+- **매번 실행 시마다** height 1부터 현재 DB의 최고 height까지 검사
+- 누락된 블록이나 트랜잭션이 있는지 확인
+- 누락된 데이터가 발견되면 자동으로 복구
+- 청크 단위(1000개 블록)로 처리하여 GraphQL 제한 회피
+
+### 🔄 동기화 모드별 특징
+
+| 모드 | 실행 방식 | 데이터 범위 | 지속성 | 용도 |
+|------|-----------|-------------|---------|------|
+| **Range** | 일회성 | 지정된 범위 | ❌ | 특정 기간 데이터 수집 |
+| **Realtime** | 지속적 | 실시간 이벤트 | ✅ | 운영 환경 실시간 동기화 |
+| **Integrity** | 일회성 | 1 ~ 최고 height | ❌ | 데이터 무결성 검증 및 복구 |
+
+### ⚠️ 주의사항
+
+1. **from만 지정 시**: 경고 메시지가 출력되며 기본값 1이 사용됩니다.
+2. **데이터 무결성 검사**: 실행할 때마다 전체 범위를 검사하므로 시간이 오래 걸릴 수 있습니다.
+3. **실시간 모드**: 백그라운드에서 백필과 실시간 동기화를 동시에 실행합니다.
+4. **메모리 사용량**: 대량의 블록 데이터를 처리할 때 메모리 사용량에 주의해야 합니다.
+
+### 🚀 권장 사용 시나리오
+
+#### **개발/테스트 환경**
+- `--from 1 --to 1000` (소량 데이터로 테스트)
+
+#### **실제 서버 적용 시 (권장 순서)**
+1. **실시간 동기화 시작**: `--realtime` (지속적인 실시간 동기화)
+2. **데이터 무결성 검사 및 복구**: `--integrity` (누락된 데이터 자동 복구)
+3. **정기적인 무결성 검사**: 주기적으로 `--integrity` 실행하여 데이터 품질 유지
+
+#### **기타 시나리오**
+- **데이터 검증**: `--integrity` (정기적인 무결성 검사)
+- **특정 기간 분석**: `--from 10000 --to 20000` (특정 기간 데이터 수집)
+
+#### **⚠️ 실제 서버 운영 시 주의사항**
+- 실시간 동기화를 먼저 시작하여 새로운 블록 데이터 수집을 중단하지 않도록 함
+- 데이터 무결성 검사는 실시간 동기화가 안정화된 후 실행
+- 무결성 검사 결과 누락된 데이터가 있으면 자동으로 복구되어 완벽한 데이터셋 구성
