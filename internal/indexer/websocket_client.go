@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"log"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 // GraphQL over WebSocket Protocol
@@ -90,9 +92,13 @@ func (sc *SubscriptionClient) Connect(ctx context.Context) error {
 
 // Subscribe starts a persistent subscription
 func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars map[string]interface{}, handler func(BlocksData) error) error {
+	log.Printf("Subscribe: starting subscription with query: %s", query)
+
 	if err := sc.Connect(ctx); err != nil {
 		return fmt.Errorf("connect websocket: %w", err)
 	}
+
+	log.Printf("Subscribe: websocket connected successfully")
 
 	// send start message with subscription
 	startMsg := gqlWSMessage{
@@ -104,17 +110,27 @@ func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars 
 		},
 	}
 
+	log.Printf("Subscribe: sending start message: %+v", startMsg)
+
 	if err := sc.conn.WriteJSON(startMsg); err != nil {
 		return fmt.Errorf("write start message: %w", err)
 	}
 
+	log.Printf("Subscribe: start message sent successfully")
+
 	// handle subscription responses in goroutine
 	go func() {
-		defer sc.conn.Close()
+		defer func() {
+			log.Printf("Subscribe: goroutine ending, closing connection")
+			sc.conn.Close()
+		}()
+
+		log.Printf("Subscribe: starting message handling loop")
 
 		for {
 			select {
 			case <-ctx.Done():
+				log.Printf("Subscribe: context cancelled, stopping subscription")
 				// send stop message before closing
 				stopMsg := gqlWSMessage{
 					Type: GQL_STOP,
@@ -123,38 +139,82 @@ func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars 
 				sc.conn.WriteJSON(stopMsg)
 				return
 			default:
+				log.Printf("Subscribe: waiting for message...")
+
 				var response gqlWSMessage
 				if err := sc.conn.ReadJSON(&response); err != nil {
-					log.Printf("read subscription response: %v", err)
+					log.Printf("Subscribe: read subscription response error: %v", err)
+
+					// 연결이 끊어진 경우 재연결 시도
+					if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+						log.Printf("Subscribe: connection closed, attempting to reconnect...")
+
+						// 잠시 대기 후 재연결 시도
+						time.Sleep(2 * time.Second)
+
+						if err := sc.reconnect(ctx); err != nil {
+							log.Printf("Subscribe: reconnection failed: %v", err)
+							return
+						}
+
+						// 재연결 후 구독 재시작
+						if err := sc.resubscribe(ctx, query, vars); err != nil {
+							log.Printf("Subscribe: resubscription failed: %v", err)
+							return
+						}
+
+						log.Printf("Subscribe: reconnected and resubscribed successfully")
+						continue
+					}
+
 					return
 				}
 
+				log.Printf("Subscribe: received message type: %s, payload: %+v", response.Type, response.Payload)
+
 				switch response.Type {
 				case GQL_DATA:
+					log.Printf("Subscribe: handling DATA message")
 					// handle data message
 					if payload, ok := response.Payload["data"]; ok {
+						log.Printf("Subscribe: data payload found: %+v", payload)
+
 						if data, ok := payload.(map[string]interface{}); ok {
 							// convert to BlocksData
 							jsonData, _ := json.Marshal(data)
+							log.Printf("Subscribe: marshaled data: %s", string(jsonData))
+
 							var blocksData BlocksData
 							if err := json.Unmarshal(jsonData, &blocksData); err == nil {
+								log.Printf("Subscribe: unmarshaled successfully, block height: %d", blocksData.GetBlocks.Height)
+
 								if err := handler(blocksData); err != nil {
-									log.Printf("handle subscription response: %v", err)
+									log.Printf("Subscribe: handler error: %v", err)
+								} else {
+									log.Printf("Subscribe: handler executed successfully")
 								}
+							} else {
+								log.Printf("Subscribe: unmarshal error: %v", err)
 							}
+						} else {
+							log.Printf("Subscribe: payload data is not map[string]interface{}: %T", payload)
 						}
+					} else {
+						log.Printf("Subscribe: no data payload found in response")
 					}
 				case GQL_ERROR:
+					log.Printf("Subscribe: handling ERROR message")
 					if payload, ok := response.Payload["errors"]; ok {
-						log.Printf("subscription error: %+v", payload)
+						log.Printf("Subscribe: subscription error: %+v", payload)
 						// Todo: re connecting logic
 					}
 				case GQL_CONNECTION_ERROR:
+					log.Printf("Subscribe: handling CONNECTION_ERROR message")
 					// connection error handling
 					if payload, ok := response.Payload["message"]; ok {
-						log.Printf("connection error: %v", payload)
+						log.Printf("Subscribe: connection error: %v", payload)
 					} else {
-						log.Printf("connection error: unknown reason")
+						log.Printf("Subscribe: connection error: unknown reason")
 					}
 					stopMsg := gqlWSMessage{
 						Type: GQL_STOP,
@@ -163,23 +223,33 @@ func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars 
 					_ = sc.conn.WriteJSON(stopMsg)
 					return
 				case GQL_COMPLETE:
-					log.Printf("subscription completed")
+					log.Printf("Subscribe: handling COMPLETE message")
+					log.Printf("Subscribe: subscription completed")
 					return
+				case GQL_CONNECTION_ACK:
+					log.Printf("Subscribe: received connection_ack (this should not happen after start)")
+				default:
+					log.Printf("Subscribe: unknown message type: %s", response.Type)
 				}
 			}
 		}
 	}()
 
+	log.Printf("Subscribe: subscription started successfully")
 	return nil
 }
 
-// SubscribeOnce executes a subscription for a single response
+// SubscribeOnce starts a one-time subscription, receives one data message, then stops
 func (sc *SubscriptionClient) SubscribeOnce(ctx context.Context, query string, vars map[string]interface{}, handler func(BlocksData) error) error {
+	log.Printf("SubscribeOnce: starting one-time subscription with query: %s", query)
+
 	if err := sc.Connect(ctx); err != nil {
 		return fmt.Errorf("connect websocket: %w", err)
 	}
 
-	// send start message
+	log.Printf("SubscribeOnce: websocket connected successfully")
+
+	// send start message with subscription
 	startMsg := gqlWSMessage{
 		Type: GQL_START,
 		ID:   "1",
@@ -189,56 +259,139 @@ func (sc *SubscriptionClient) SubscribeOnce(ctx context.Context, query string, v
 		},
 	}
 
+	log.Printf("SubscribeOnce: sending start message: %+v", startMsg)
+
 	if err := sc.conn.WriteJSON(startMsg); err != nil {
 		return fmt.Errorf("write start message: %w", err)
 	}
 
+	log.Printf("SubscribeOnce: start message sent successfully, waiting for data...")
+
 	// wait for data message
 	for {
-		var response gqlWSMessage
-		if err := sc.conn.ReadJSON(&response); err != nil {
-			return fmt.Errorf("read subscription response: %w", err)
-		}
+		select {
+		case <-ctx.Done():
+			log.Printf("SubscribeOnce: context cancelled")
+			sc.conn.Close()
+			return ctx.Err()
+		default:
+			var response gqlWSMessage
+			if err := sc.conn.ReadJSON(&response); err != nil {
+				log.Printf("SubscribeOnce: read subscription response error: %v", err)
+				sc.conn.Close()
+				return fmt.Errorf("read subscription response: %w", err)
+			}
 
-		switch response.Type {
-		case GQL_DATA:
-			// handle data message
-			if payload, ok := response.Payload["data"]; ok {
-				if data, ok := payload.(map[string]interface{}); ok {
-					// convert to BlocksData
-					jsonData, _ := json.Marshal(data)
-					var blocksData BlocksData
-					if err := json.Unmarshal(jsonData, &blocksData); err == nil {
-						if err := handler(blocksData); err != nil {
-							log.Printf("handle subscription response: %v", err)
+			log.Printf("SubscribeOnce: received message type: %s, payload: %+v", response.Type, response.Payload)
+
+			switch response.Type {
+			case GQL_DATA:
+				log.Printf("SubscribeOnce: handling DATA message")
+				// handle data message
+				if payload, ok := response.Payload["data"]; ok {
+					log.Printf("SubscribeOnce: data payload found: %+v", payload)
+
+					if data, ok := payload.(map[string]interface{}); ok {
+						// convert to BlocksData
+						jsonData, _ := json.Marshal(data)
+						log.Printf("SubscribeOnce: marshaled data: %s", string(jsonData))
+
+						var blocksData BlocksData
+						if err := json.Unmarshal(jsonData, &blocksData); err == nil {
+							log.Printf("SubscribeOnce: unmarshaled successfully, block height: %d", blocksData.GetBlocks.Height)
+
+							if err := handler(blocksData); err != nil {
+								log.Printf("SubscribeOnce: handler error: %v", err)
+								sc.conn.Close()
+								return fmt.Errorf("handler error: %w", err)
+							}
+
+							log.Printf("SubscribeOnce: handler executed successfully")
+						} else {
+							log.Printf("SubscribeOnce: unmarshal error: %v", err)
+							sc.conn.Close()
+							return fmt.Errorf("unmarshal error: %w", err)
 						}
+					} else {
+						log.Printf("SubscribeOnce: payload data is not map[string]interface{}: %T", payload)
+						sc.conn.Close()
+						return fmt.Errorf("invalid payload data type: %T", payload)
 					}
+				} else {
+					log.Printf("SubscribeOnce: no data payload found in response")
+					sc.conn.Close()
+					return fmt.Errorf("no data payload found")
 				}
+
+				// send stop message and close connection
+				stopMsg := gqlWSMessage{
+					Type: GQL_STOP,
+					ID:   "1",
+				}
+				sc.conn.WriteJSON(stopMsg)
+				sc.conn.Close()
+				log.Printf("SubscribeOnce: one-time subscription completed successfully")
+				return nil
+
+			case GQL_ERROR:
+				log.Printf("SubscribeOnce: handling ERROR message")
+				if payload, ok := response.Payload["errors"]; ok {
+					log.Printf("SubscribeOnce: subscription error: %+v", payload)
+				}
+				sc.conn.Close()
+				return fmt.Errorf("subscription error: %+v", response.Payload)
+
+			case GQL_CONNECTION_ERROR:
+				log.Printf("SubscribeOnce: handling CONNECTION_ERROR message")
+				if payload, ok := response.Payload["message"]; ok {
+					log.Printf("SubscribeOnce: connection error: %v", payload)
+				} else {
+					log.Printf("SubscribeOnce: connection error: unknown reason")
+				}
+				sc.conn.Close()
+				return fmt.Errorf("connection error: %+v", response.Payload)
+
+			case GQL_COMPLETE:
+				log.Printf("SubscribeOnce: handling COMPLETE message")
+				sc.conn.Close()
+				return fmt.Errorf("subscription completed without data")
+
+			case GQL_CONNECTION_ACK:
+				log.Printf("SubscribeOnce: received connection_ack (this should not happen after start)")
+
+			default:
+				log.Printf("SubscribeOnce: unknown message type: %s", response.Type)
 			}
-			// send stop message
-			stopMsg := gqlWSMessage{
-				Type: GQL_STOP,
-				ID:   "1",
-			}
-			sc.conn.WriteJSON(stopMsg)
-			break
-		case GQL_CONNECTION_ERROR:
-			if payload, ok := response.Payload["message"]; ok {
-				log.Printf("connection error: %v", payload)
-			} else {
-				log.Printf("connection error: unknown reason")
-			}
-			return fmt.Errorf("connection error: %v", response.Payload)
-		case GQL_ERROR:
-			return fmt.Errorf("subscription error: %+v", response.Payload)
-		case GQL_COMPLETE:
-			break
 		}
 	}
+}
 
-	sc.conn.Close()
-	sc.conn = nil
-	return nil
+// reconnect attempts to reconnect to the websocket
+func (sc *SubscriptionClient) reconnect(ctx context.Context) error {
+	log.Printf("reconnect: attempting to reconnect...")
+
+	if sc.conn != nil {
+		sc.conn.Close()
+		sc.conn = nil
+	}
+
+	return sc.Connect(ctx)
+}
+
+// resubscribe sends the subscription start message again
+func (sc *SubscriptionClient) resubscribe(ctx context.Context, query string, vars map[string]interface{}) error {
+	log.Printf("resubscribe: sending start message again...")
+
+	startMsg := gqlWSMessage{
+		Type: GQL_START,
+		ID:   "1",
+		Payload: map[string]interface{}{
+			"query":     query,
+			"variables": vars,
+		},
+	}
+
+	return sc.conn.WriteJSON(startMsg)
 }
 
 // Close closes the WebSocket connection

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/joho/godotenv"
 	"gn-indexer/internal/config"
 	"gn-indexer/internal/indexer"
 	"gn-indexer/internal/repository"
@@ -11,6 +10,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"gn-indexer/internal/service"
+
+	"github.com/joho/godotenv"
 )
 
 func init() {
@@ -41,7 +44,7 @@ func main() {
 	ctx := context.Background()
 
 	// http client
-	cliBlocks := indexer.NewGraphQLClient[indexer.BlocksData](gqlEndpoint)
+	cliBlocks := indexer.NewGraphQLClient[indexer.BlocksQueryData](gqlEndpoint)
 	cliTxs := indexer.NewGraphQLClient[indexer.TxsData](gqlEndpoint)
 
 	// websocket client
@@ -61,7 +64,7 @@ func main() {
 	)
 
 	if *realtime {
-		// real-time synchronization
+		// real-time synchronization using orchestrator
 		log.Println("starting realtime sync mode...")
 
 		ctx, cancel := context.WithCancel(ctx)
@@ -71,10 +74,13 @@ func main() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-		// Start realtime sync in a goroutine
+		// Create and start sync orchestrator
+		orchestrator := service.NewSyncOrchestrator(syncer, subClient, wsEndpoint)
+
+		// Start orchestrated sync in a goroutine
 		go func() {
-			if err := syncer.StartRealtimeSync(ctx); err != nil {
-				log.Printf("realtime sync failed: %v", err)
+			if err := orchestrator.StartOrchestratedSync(ctx); err != nil {
+				log.Printf("orchestrated sync failed: %v", err)
 			}
 		}()
 

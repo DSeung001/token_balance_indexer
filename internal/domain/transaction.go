@@ -10,8 +10,8 @@ type TransactionMessage struct {
 
 // GasFee represents gas fee information
 type GasFee struct {
-	Amount string `json:"amount"`
-	Denom  string `json:"denom"`
+	Amount interface{} `json:"amount"`
+	Denom  string      `json:"denom"`
 }
 
 // GnoEvent represents a blockchain event

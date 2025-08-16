@@ -10,8 +10,13 @@ import (
 	"gn-indexer/internal/repository"
 )
 
-// BlocksData represents block query response data
+// BlocksData represents block subscription response data (single block)
 type BlocksData struct {
+	GetBlocks domain.Block `json:"getBlocks"`
+}
+
+// BlocksQueryData represents block query response data (multiple blocks)
+type BlocksQueryData struct {
 	GetBlocks []domain.Block `json:"getBlocks"`
 }
 
@@ -21,22 +26,19 @@ type TxsData struct {
 }
 
 type Syncer struct {
-	blockClient *GraphQLClient[BlocksData]
+	blockClient *GraphQLClient[BlocksQueryData]
 	txClient    *GraphQLClient[TxsData]
 	subClient   *SubscriptionClient
 
 	// Use repositories instead of direct DB access
 	blockRepo       repository.BlockRepository
 	transactionRepo repository.TransactionRepository
-
-	backfillSvc *BackfillService
-	realtimeSvc *RealtimeSyncService
 }
 
 // ... existing types ...
 
 func NewSyncer(
-	client *GraphQLClient[BlocksData],
+	client *GraphQLClient[BlocksQueryData],
 	txClient *GraphQLClient[TxsData],
 	subClient *SubscriptionClient,
 	blockRepo repository.BlockRepository,
@@ -50,15 +52,12 @@ func NewSyncer(
 		transactionRepo: transactionRepo,
 	}
 
-	syncer.backfillSvc = &BackfillService{syncer: syncer}
-	syncer.realtimeSvc = &RealtimeSyncService{syncer: syncer, subClient: subClient}
-
 	return syncer
 }
 
 // SyncBlocks synchronizes blocks within a height range
 func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error {
-	var bd BlocksData
+	var bd BlocksQueryData
 	if err := s.blockClient.Do(ctx, api.QBlocks, map[string]interface{}{
 		"gt": fromHeight,
 		"lt": toHeight,
@@ -115,16 +114,11 @@ func (s *Syncer) SyncRange(ctx context.Context, fromHeight, toHeight int) error 
 
 // StartRealtimeSync starts real-time synchronization
 func (s *Syncer) StartRealtimeSync(ctx context.Context) error {
-	return s.realtimeSvc.Start(ctx)
+	return nil // No longer managed by Syncer
 }
 
-// BackfillToLatest performs backfill to the latest block
-func (s *Syncer) BackfillToLatest(ctx context.Context) error {
-	return s.backfillSvc.BackfillToLatest(ctx)
-}
-
-// handleRealtimeBlock processes real-time block data
-func (s *Syncer) handleRealtimeBlock(ctx context.Context, block domain.Block) error {
+// HandleRealtimeBlock processes real-time block data
+func (s *Syncer) HandleRealtimeBlock(ctx context.Context, block domain.Block) error {
 	// save block
 	if err := s.blockRepo.SaveBlock(ctx, block); err != nil {
 		return fmt.Errorf("save realtime block: %w", err)
@@ -139,4 +133,9 @@ func (s *Syncer) handleRealtimeBlock(ctx context.Context, block domain.Block) er
 
 	log.Printf("realtime sync: block %d saved", block.Height)
 	return nil
+}
+
+// GetSubscriptionClient returns the subscription client
+func (s *Syncer) GetSubscriptionClient() *SubscriptionClient {
+	return s.subClient
 }
