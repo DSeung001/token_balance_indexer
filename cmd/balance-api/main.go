@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	gdb "gn-indexer/internal/db"
+	"gn-indexer/internal/config"
 	"log"
 )
 
@@ -14,8 +14,12 @@ func init() {
 }
 
 func main() {
-	db := gdb.MustConnect()
-	_ = db //repo에 주입에서 사용
+	connConfig := config.NewDatabaseConfig()
+	gormDb, err := connConfig.Connect()
+	if err != nil {
+		log.Fatal(err)
+	}
+	_ = gormDb
 
 	r := gin.Default()
 	r.GET("/health", func(c *gin.Context) {

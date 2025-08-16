@@ -4,12 +4,12 @@ import (
 	"context"
 	"flag"
 	"github.com/joho/godotenv"
+	"gn-indexer/internal/config"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"gn-indexer/internal/db"
 	"gn-indexer/internal/indexer"
 )
 
@@ -32,7 +32,11 @@ func main() {
 	flag.Parse()
 
 	// db connect
-	gormDb := db.MustConnect()
+	connConfig := config.NewDatabaseConfig()
+	gormDb, err := connConfig.Connect()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	ctx := context.Background()
 

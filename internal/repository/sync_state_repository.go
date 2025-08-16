@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	models "gn-indexer/internal/db/models"
+	"gn-indexer/internal/models"
 	"gorm.io/gorm"
 )
 
