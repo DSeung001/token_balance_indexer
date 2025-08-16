@@ -57,21 +57,30 @@ func main() {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		// signal handling for gracefull shutdown
+		// signal handling for graceful shutdown
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+		// Start realtime sync in a goroutine
 		go func() {
-			sig := <-sigChan
-			log.Printf("received signal %v, shutting down gracefully...", sig)
-			cancel()
+			if err := syncer.StartRealtimeSync(ctx); err != nil {
+				log.Printf("realtime sync failed: %v", err)
+			}
 		}()
 
-		if err := syncer.StartRealtimeSync(ctx); err != nil {
-			log.Fatalf("realtime sync failed: %v", err)
+		// Wait for signal
+		sig := <-sigChan
+		log.Printf("received signal %v, shutting down gracefully...", sig)
+
+		// Cancel context to stop all operations
+		cancel()
+
+		// Close WebSocket connection
+		if err := subClient.Close(); err != nil {
+			log.Printf("error closing websocket: %v", err)
 		}
 
-		log.Println("realtime sync stopped")
+		log.Println("shutdown completed")
 	} else {
 		// test/dev
 		if *toHeight == 0 {
