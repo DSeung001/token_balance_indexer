@@ -15,8 +15,8 @@ type BlocksData struct {
 	GetBlocks domain.Block `json:"getBlocks"`
 }
 
-// BlocksQueryData represents block query response data (multiple blocks)
-type BlocksQueryData struct {
+// BlocksDataArr represents block query response data (multiple blocks)
+type BlocksDataArr struct {
 	GetBlocks []domain.Block `json:"getBlocks"`
 }
 
@@ -26,7 +26,7 @@ type TxsData struct {
 }
 
 type Syncer struct {
-	blockClient *GraphQLClient[BlocksQueryData]
+	blockClient *GraphQLClient[BlocksDataArr]
 	txClient    *GraphQLClient[TxsData]
 	subClient   *SubscriptionClient
 
@@ -38,7 +38,7 @@ type Syncer struct {
 // ... existing types ...
 
 func NewSyncer(
-	client *GraphQLClient[BlocksQueryData],
+	client *GraphQLClient[BlocksDataArr],
 	txClient *GraphQLClient[TxsData],
 	subClient *SubscriptionClient,
 	blockRepo repository.BlockRepository,
@@ -57,7 +57,7 @@ func NewSyncer(
 
 // SyncBlocks synchronizes blocks within a height range
 func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error {
-	var bd BlocksQueryData
+	var bd BlocksDataArr
 	if err := s.blockClient.Do(ctx, api.QBlocks, map[string]interface{}{
 		"gt": fromHeight,
 		"lt": toHeight,

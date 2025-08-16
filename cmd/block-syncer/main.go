@@ -44,7 +44,7 @@ func main() {
 	ctx := context.Background()
 
 	// http client
-	cliBlocks := indexer.NewGraphQLClient[indexer.BlocksQueryData](gqlEndpoint)
+	cliBlocks := indexer.NewGraphQLClient[indexer.BlocksDataArr](gqlEndpoint)
 	cliTxs := indexer.NewGraphQLClient[indexer.TxsData](gqlEndpoint)
 
 	// websocket client
