@@ -74,13 +74,13 @@ func main() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-		// Create and start sync orchestrator
-		orchestrator := service.NewSyncOrchestrator(syncer, subClient, wsEndpoint)
+		// Create and start block sync manager
+		syncService := service.NewBlockSyncService(syncer, subClient, wsEndpoint)
 
-		// Start orchestrated sync in a goroutine
+		// Start parallel sync in a goroutine
 		go func() {
-			if err := orchestrator.StartOrchestratedSync(ctx); err != nil {
-				log.Printf("orchestrated sync failed: %v", err)
+			if err := syncService.StartParallelSync(ctx); err != nil {
+				log.Printf("parallel sync failed: %v", err)
 			}
 		}()
 
