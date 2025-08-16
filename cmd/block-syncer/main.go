@@ -65,8 +65,8 @@ func main() {
 	)
 
 	if *realtime {
-		// real-time synchronization using orchestrator
-		log.Println("starting realtime sync mode...")
+		// Real-time synchronization
+		log.Println("starting realtime sync mode")
 
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -75,13 +75,13 @@ func main() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-		// Create and start block sync manager
-		syncService := service.NewBlockSyncService(syncer, subClient, wsEndpoint)
+		// Create and start realtime sync service
+		realtimeService := service.NewRealtimeSyncService(syncer, subClient)
 
-		// Start parallel sync in a goroutine
+		// Start realtime sync in a goroutine
 		go func() {
-			if err := syncService.StartParallelSync(ctx); err != nil {
-				log.Printf("parallel sync failed: %v", err)
+			if err := realtimeService.Start(ctx); err != nil {
+				log.Printf("realtime sync failed: %v", err)
 			}
 		}()
 
@@ -132,11 +132,19 @@ func main() {
 
 		log.Println("sync completed successfully")
 	} else {
-		// Usage guide
+		// Default behavior: sync from height 1 to 1000
+		log.Println("no flags specified, starting default sync from height 1 to 1000...")
+
+		if err := syncer.SyncRange(ctx, 1, 1000); err != nil {
+			log.Fatalf("failed to sync default range: %v", err)
+		}
+
+		log.Println("default sync completed successfully")
+		log.Println("")
 		log.Println("Usage:")
 		log.Println("  --integrity: Check and fix data integrity from height 1")
 		log.Println("  --realtime: Start realtime sync mode")
-		log.Println("  --from <height> --to <height>: Sync specific range (from defaults to 1)")
-		log.Println("  No flags: Show this help message")
+		log.Println("  --from <height> --to <height>: Sync specific range (from defaults to 1, to defaults to 1000)")
+		log.Println("  No flags: Sync from height 1 to 1000 (default behavior)")
 	}
 }
