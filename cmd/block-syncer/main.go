@@ -31,6 +31,7 @@ func main() {
 		fromHeight = flag.Int("from", 0, "from block height")
 		toHeight   = flag.Int("to", 0, "to block height")
 		realtime   = flag.Bool("realtime", false, "start realtime sync")
+		integrity  = flag.Bool("integrity", false, "check and fix data integrity from height 1")
 	)
 	flag.Parse()
 
@@ -97,8 +98,20 @@ func main() {
 		}
 
 		log.Println("shutdown completed")
-	} else {
-		// test/dev
+	} else if *integrity {
+		// 데이터 무결성 체크 및 수정 (높이 1부터)
+		log.Println("starting data integrity check and fix from height 1...")
+
+		dataIntegritySvc := service.NewDataIntegrityService(syncer)
+
+		if err := dataIntegritySvc.CheckAndFixDataIntegrity(ctx); err != nil {
+			log.Fatalf("data integrity check and fix failed: %v", err)
+		}
+
+		log.Println("data integrity check and fix completed successfully")
+		return
+	} else if *fromHeight > 0 || *toHeight > 0 {
+		// 특정 범위 동기화
 		if *toHeight == 0 {
 			*toHeight = 1000 // default
 		}
@@ -110,5 +123,12 @@ func main() {
 		}
 
 		log.Println("sync completed successfully")
+	} else {
+		// 사용법 안내
+		log.Println("Usage:")
+		log.Println("  --integrity: Check and fix data integrity from height 1")
+		log.Println("  --realtime: Start realtime sync mode")
+		log.Println("  --from <height> --to <height>: Sync specific range")
+		log.Println("  No flags: Show this help message")
 	}
 }
