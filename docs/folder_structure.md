@@ -13,24 +13,27 @@ MSA 구조에서는 서비스별 역할을 분리하고, 공통 코드는 재사
 
 ```
 gn-indexer/
-├─ cmd/
-│  ├─ api/           # Balance API 서비스 (REST API Server)
-│  ├─ processor/     # Event Processor 서비스 (SQS Consumer)
-│  └─ syncer/        # Block Synchronizer 서비스 (Producer)
-├─ internal/
-│  ├─ api/           # API 라우팅, 핸들러
-│  ├─ config/        # 환경변수 로드, 설정값 관리
-│  ├─ db/            # DB 연결 및 마이그레이션
-│  ├─ domain/        # 핵심 도메인 로직, 엔티티
-│  ├─ indexer/       # GraphQL 호출 및 블록/트랜잭션 파싱 로직
-│  ├─ parsing/       # 이벤트 파싱 유틸리티
-│  └─ queue/         # SQS 송신/수신 로직
-├─ schema/           # DB 스키마(SQL)
-├─ .localstack/      # 로컬 SQS 환경 데이터
-├─ docker-compose.yml
-├─ Makefile
-├─ go.mod / go.sum
-└─ README.md
+├── cmd/                    # 메인 애플리케이션 진입점
+│   ├── block-syncer/       # 블록 동기화 서비스 (Producer)
+│   ├── balance-api/        # 잔액 조회 API 서비스
+│   └── event-processor/    # 이벤트 처리 서비스 (Consumer)
+├── internal/               # 내부 패키지들
+│   ├── client/             # 외부 API 통신 (HTTP, WebSocket)
+│   ├── producer/           # Producer 로직 (블록 동기화)
+│   ├── consumer/           # Consumer 로직 (이벤트 처리)
+│   ├── types/              # 공통 타입 정의
+│   ├── service/            # 비즈니스 로직 서비스
+│   ├── domain/             # 도메인 모델
+│   ├── repository/         # 데이터 접근 계층
+│   ├── queue/              # 메시지 큐 처리
+│   ├── api/                # API 관련
+│   └── config/             # 설정 관리
+├── db/                     # 데이터베이스 관련 파일
+├── docs/                   # 프로젝트 문서
+├── docker-compose.yml      # Docker 환경 설정
+├── go.mod                  # Go 모듈 정의
+├── go.sum                  # Go 모듈 체크섬
+└── README.md
 ```
 
 ---
