@@ -1,10 +1,13 @@
 package main
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
+	"flag"
+	"gn-indexer/internal/api"
 	"gn-indexer/internal/config"
+	"gn-indexer/internal/repository"
 	"log"
+
+	"github.com/joho/godotenv"
 )
 
 func init() {
@@ -14,16 +17,41 @@ func init() {
 }
 
 func main() {
-	connConfig := config.NewDatabaseConfig()
-	gormDb, err := connConfig.Connect()
-	if err != nil {
-		log.Fatal(err)
-	}
-	_ = gormDb
+	// Parse command line flags
+	var (
+		port = flag.String("port", "8080", "server port")
+		host = flag.String("host", "127.0.0.1", "server host")
+	)
+	flag.Parse()
 
-	r := gin.Default()
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"ok": true})
-	})
-	r.Run(":8080")
+	// Load environment variables
+	if err := godotenv.Load(); err != nil {
+		log.Println("no .env file found, continuing...")
+	}
+
+	// Database connection
+	dbConfig := config.NewDatabaseConfig()
+	gormDb, err := dbConfig.Connect()
+	if err != nil {
+		log.Fatal("failed to connect to database:", err)
+	}
+
+	// Create repositories
+	balanceRepo := repository.NewBalanceRepository(gormDb)
+	tokenRepo := repository.NewTokenRepository(gormDb)
+
+	// Create and start API server
+	server := api.NewServer(balanceRepo, tokenRepo)
+
+	addr := *host + ":" + *port
+	log.Printf("Starting GN Indexer Balance API on %s", addr)
+	log.Printf("Available endpoints:")
+	log.Printf("  GET /health")
+	log.Printf("  GET /tokens/balances?address={address}")
+	log.Printf("  GET /tokens/{tokenPath}/balances?address={address}")
+	log.Printf("  GET /tokens/transfer-history?address={address}")
+
+	if err := server.Run(addr); err != nil {
+		log.Fatal("failed to start server:", err)
+	}
 }
