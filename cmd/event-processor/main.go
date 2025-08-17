@@ -40,8 +40,8 @@ func main() {
 
 	// Load queue configuration
 	queueConfig := &queue.QueueConfig{
-		QueueName:          getEnv("SQS_QUEUE_NAME", "token-events"),
-		EndpointURL:        getEnv("LOCALSTACK_EDGE_PORT", "http://localhost:4566"),
+		QueueName:          getEnv("SQS_QUEUE_NAME", "gn-token-events"),
+		EndpointURL:        getEnv("LOCALSTACK_URL", "http://localhost:4566"),
 		Region:             getEnv("AWS_DEFAULT_REGION", "ap-northeast-2"),
 		AccessKeyID:        getEnv("AWS_ACCESS_KEY_ID", "test"),
 		SecretAccessKey:    getEnv("AWS_SECRET_ACCESS_KEY", "test"),

@@ -29,9 +29,6 @@ services:
       timeout: 3s
       retries: 10
 
-  # db data init
-  
-
   # db table migration
   migrate:
     image: migrate/migrate:4
@@ -69,6 +66,7 @@ services:
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
       - EDGE_PORT=${LOCALSTACK_EDGE_PORT}
       - DEBUG=0
+      - SQS_QUEUE_NAME=${SQS_QUEUE_NAME}
     ports:
       - "${LOCALSTACK_EDGE_PORT}:4566"
     networks:
@@ -76,34 +74,40 @@ services:
     volumes:
       - "./.localstack:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
-    # curl 기반 헬스체크
     healthcheck:
-      test: [ "CMD-SHELL", "curl -fsS http://localhost:4566/_localstack/health | grep '\"sqs\": *\"available\"' >/dev/null" ]
+      test: [ "CMD-SHELL", "awslocal sqs list-queues >/dev/null 2>&1 || exit 1" ]
       interval: 5s
       timeout: 5s
-      retries: 20
+      retries: 40
+      start_period: 15s
 
-  # LocalStack에 SQS 큐 자동 생성로직
+
+
+    # LocalStack에 SQS 큐 자동 생성 및 검증
   sqs-init:
     image: amazon/aws-cli:2.15.58
     container_name: ${COMPOSE_PROJECT_NAME}-sqs-init
     depends_on:
       localstack:
         condition: service_healthy
-    networks:
-      - app-net
+    networks: [ app-net ]
     environment:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
-      LOCALSTACK_URL: "http://localstack:${LOCALSTACK_EDGE_PORT}"
+      LOCALSTACK_INTERNAL_URL: "http://localstack:${LOCALSTACK_EDGE_PORT}"
       SQS_QUEUE_NAME: ${SQS_QUEUE_NAME}
-    entrypoint: ["/bin/sh", "-lc"]
-    command: >
-      "
-      set -e
-      echo 'creating SQS queue: ' ${SQS_QUEUE_NAME}
-      aws --endpoint-url=${LOCALSTACK_URL} sqs create-queue --queue-name ${SQS_QUEUE_NAME} || true
-      echo 'SQS ready'
-      "
+    # 멀티라인/개행 문제 방지: 엔트리포인트에 "단 한 줄"로 넣는다.
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - >
+        set -euo pipefail;
+        echo "[sqs-init] wait SQS...";
+        until aws --region ${AWS_DEFAULT_REGION} --endpoint-url=${LOCALSTACK_INTERNAL_URL} sqs list-queues >/dev/null 2>&1; do sleep 2; done;
+        echo "[sqs-init] create queue: ${SQS_QUEUE_NAME}";
+        aws --region ${AWS_DEFAULT_REGION} --endpoint-url=${LOCALSTACK_INTERNAL_URL} sqs create-queue --queue-name ${SQS_QUEUE_NAME} >/dev/null 2>&1 || true;
+        echo "[sqs-init] verify url";
+        aws --region ${AWS_DEFAULT_REGION} --endpoint-url=${LOCALSTACK_INTERNAL_URL} sqs get-queue-url --queue-name ${SQS_QUEUE_NAME};
+        echo "[sqs-init] done"
     restart: "no"

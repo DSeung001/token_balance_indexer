@@ -48,3 +48,29 @@ go run ./cmd/balance-api
 # Event Processor  
 go run ./cmd/event-processor
 ```
+
+## SQS 테스트
+
+### 기본 테스트
+```bash
+# 큐 목록 확인
+aws --endpoint-url http://127.0.0.1:4566 sqs list-queues
+
+# 테스트 메시지 전송
+aws --endpoint-url http://127.0.0.1:4566 sqs send-message --queue-url "http://sqs.ap-northeast-2.localhost.localstack.cloud:4566/000000000000/gn-token-events" --message-body "{\"test\": \"message\"}"
+
+# 메시지 수신
+aws --endpoint-url http://127.0.0.1:4566 sqs receive-message --queue-url "http://sqs.ap-northeast-2.localhost.localstack.cloud:4566/000000000000/gn-token-events"
+```
+
+### PowerShell (Windows)
+```powershell
+# 큐 목록 확인
+aws --endpoint-url http://127.0.0.1:4566 sqs list-queues
+
+# 테스트 메시지 전송
+aws --endpoint-url http://127.0.0.1:4566 sqs send-message --queue-url "http://sqs.ap-northeast-2.localhost.localstack.cloud:4566/000000000000/gn-token-events" --message-body "{\"test\": \"message\"}"
+
+# 메시지 수신
+aws --endpoint-url http://127.0.0.1:4566 sqs receive-message --queue-url "http://sqs.ap-northeast-2.localhost.localstack.cloud:4566/000000000000/gn-token-events"
+```
