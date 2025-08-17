@@ -3,17 +3,21 @@ package service
 import (
 	"context"
 	"fmt"
+	"gn-indexer/internal/client"
 	"gn-indexer/internal/producer"
+	"gn-indexer/internal/types"
 	"log"
 )
 
 type DataIntegrityService struct {
-	syncer *producer.Syncer
+	syncer    *producer.Syncer
+	subClient *client.SubscriptionClient
 }
 
-func NewDataIntegrityService(syncer *producer.Syncer) *DataIntegrityService {
+func NewDataIntegrityService(syncer *producer.Syncer, subClient *client.SubscriptionClient) *DataIntegrityService {
 	return &DataIntegrityService{
-		syncer: syncer,
+		syncer:    syncer,
+		subClient: subClient,
 	}
 }
 
@@ -30,29 +34,26 @@ func (dis *DataIntegrityService) SyncRange(ctx context.Context, fromHeight, toHe
 }
 
 // CheckAndFixDataIntegrity performs data integrity check and fixes missing blocks/transactions
-// This will re-sync all blocks and transactions from height 1 to the current highest height in DB
+// This will re-sync all blocks and transactions from height 1 to the current latest height from network
 func (dis *DataIntegrityService) CheckAndFixDataIntegrity(ctx context.Context) error {
 	log.Printf("DataIntegrityService: starting data integrity check and fix from height 1")
 
-	dbHighestHeight, err := dis.syncer.GetLastSyncedHeight(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get highest height from DB: %w", err)
-	}
-
-	if dbHighestHeight == 0 {
-		log.Printf("DataIntegrityService: no blocks in DB, starting initial sync from height 1")
-		// Perform initial sync if database is empty
-		log.Printf("DataIntegrityService: performing initial sync from height 1 to 1000")
-		if err := dis.syncRangeWithChunks(ctx, 1, 1000); err != nil {
-			return fmt.Errorf("initial sync failed: %w", err)
-		}
-		log.Printf("DataIntegrityService: initial sync completed successfully")
+	// Get the latest block height from network using SubscribeOnce (same as backfill service)
+	var latestNetworkHeight int
+	err := dis.subClient.SubscribeOnce(ctx, producer.SBlocks, nil, func(data types.BlocksData) error {
+		latestNetworkHeight = data.GetBlocks.Height
 		return nil
-	} else {
-		log.Printf("DataIntegrityService: DB has blocks up to height %d, will check and fix integrity from height 1", dbHighestHeight)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get latest network height: %w", err)
 	}
 
-	return dis.syncRangeWithChunks(ctx, 1, int64(dbHighestHeight))
+	if latestNetworkHeight < 1 {
+		return fmt.Errorf("invalid network height: %d", latestNetworkHeight)
+	}
+
+	log.Printf("DataIntegrityService: latest network height: %d, will sync entire range from height 1 to %d", latestNetworkHeight, latestNetworkHeight)
+	return dis.syncRangeWithChunks(ctx, 1, int64(latestNetworkHeight))
 }
 
 // syncRangeWithChunks processes blocks in chunks to avoid GraphQL limits
@@ -64,14 +65,20 @@ func (dis *DataIntegrityService) syncRangeWithChunks(ctx context.Context, fromHe
 
 	const chunkSize = int64(1000)
 
-	totalChunks := (toHeight - fromHeight) / chunkSize
-	if (toHeight-fromHeight)%chunkSize != 0 {
-		totalChunks++
+	// Calculate total chunks
+	var totalChunks int64
+	if fromHeight == toHeight {
+		totalChunks = 1
+	} else {
+		totalChunks = (toHeight - fromHeight) / chunkSize
+		if (toHeight-fromHeight)%chunkSize != 0 {
+			totalChunks++
+		}
 	}
 
 	log.Printf("DataIntegrityService: processing %d chunks from height %d to %d", totalChunks, fromHeight, toHeight)
 
-	successCount := 0
+	successCount := int64(0)
 	currentChunk := int64(0)
 
 	for from := fromHeight; from <= toHeight; from += chunkSize {

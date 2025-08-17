@@ -105,7 +105,7 @@ func main() {
 		// Data integrity check and fix (from height 1)
 		log.Println("starting data integrity check and fix from height 1...")
 
-		dataIntegritySvc := service.NewDataIntegrityService(syncer)
+		dataIntegritySvc := service.NewDataIntegrityService(syncer, subClient)
 
 		if err := dataIntegritySvc.CheckAndFixDataIntegrity(ctx); err != nil {
 			log.Fatalf("data integrity check and fix failed: %v", err)

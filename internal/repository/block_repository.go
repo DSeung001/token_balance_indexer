@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gn-indexer/internal/domain"
+
 	"gorm.io/gorm"
 )
 
