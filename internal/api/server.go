@@ -17,6 +17,7 @@ type Server struct {
 func NewServer(
 	balanceRepo repository.BalanceRepository,
 	tokenRepo repository.TokenRepository,
+	transferRepo repository.TransferRepository,
 ) *Server {
 	// Set Gin to release mode for production
 	gin.SetMode(gin.ReleaseMode)
@@ -24,7 +25,7 @@ func NewServer(
 	router := gin.Default()
 
 	// Create handlers
-	balanceHandler := NewBalanceHandler(balanceRepo, tokenRepo)
+	balanceHandler := NewBalanceHandler(balanceRepo, tokenRepo, transferRepo)
 
 	server := &Server{
 		router:         router,
@@ -46,7 +47,7 @@ func (s *Server) setupRoutes() {
 
 	// API routes
 	s.router.GET("/tokens/balances", s.balanceHandler.GetBalancesByAddress)
-	s.router.GET("/tokens/:tokenPath/balances", s.balanceHandler.GetBalancesByToken)
+	s.router.GET("/tokens/:tokenPath/balances", s.balanceHandler.GetBalancesByTokenAndAddress)
 	s.router.GET("/tokens/transfer-history", s.balanceHandler.GetTransferHistory)
 }
 

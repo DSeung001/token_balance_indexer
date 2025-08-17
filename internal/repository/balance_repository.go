@@ -17,7 +17,7 @@ type BalanceRepository interface {
 	Update(ctx context.Context, balance *domain.Balance) error
 	GetBalance(ctx context.Context, tokenPath, address string) (*domain.Balance, error)
 	GetBalancesByAddress(ctx context.Context, address string) ([]*domain.Balance, error)
-	GetBalancesByToken(ctx context.Context, tokenPath string) ([]*domain.Balance, error)
+	GetBalancesByTokenAndAddress(ctx context.Context, tokenPath string) ([]*domain.Balance, error)
 	GetAllBalances(ctx context.Context) ([]*domain.Balance, error)
 }
 
@@ -80,8 +80,8 @@ func (r *balanceRepository) GetBalancesByAddress(ctx context.Context, address st
 	return balances, nil
 }
 
-// GetBalancesByToken gets all balances for a specific token
-func (r *balanceRepository) GetBalancesByToken(ctx context.Context, tokenPath string) ([]*domain.Balance, error) {
+// GetBalancesByTokenAndAddress gets all balances for a specific token
+func (r *balanceRepository) GetBalancesByTokenAndAddress(ctx context.Context, tokenPath string) ([]*domain.Balance, error) {
 	var balances []*domain.Balance
 	result := r.db.WithContext(ctx).
 		Where("token_path = ?", tokenPath).

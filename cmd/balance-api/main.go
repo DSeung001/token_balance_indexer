@@ -39,9 +39,10 @@ func main() {
 	// Create repositories
 	balanceRepo := repository.NewBalanceRepository(gormDb)
 	tokenRepo := repository.NewTokenRepository(gormDb)
+	transferRepo := repository.NewTransferRepository(gormDb)
 
 	// Create and start API server
-	server := api.NewServer(balanceRepo, tokenRepo)
+	server := api.NewServer(balanceRepo, tokenRepo, transferRepo)
 
 	addr := *host + ":" + *port
 	log.Printf("Starting GN Indexer Balance API on %s", addr)

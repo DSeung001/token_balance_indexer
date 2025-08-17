@@ -5,24 +5,28 @@ import (
 	"strconv"
 
 	"gn-indexer/internal/repository"
+	"gn-indexer/internal/types"
 
 	"github.com/gin-gonic/gin"
 )
 
 // BalanceHandler handles balance-related API requests
 type BalanceHandler struct {
-	balanceRepo repository.BalanceRepository
-	tokenRepo   repository.TokenRepository
+	balanceRepo  repository.BalanceRepository
+	tokenRepo    repository.TokenRepository
+	transferRepo repository.TransferRepository
 }
 
 // NewBalanceHandler creates a new balance handler
 func NewBalanceHandler(
 	balanceRepo repository.BalanceRepository,
 	tokenRepo repository.TokenRepository,
+	transferRepo repository.TransferRepository,
 ) *BalanceHandler {
 	return &BalanceHandler{
-		balanceRepo: balanceRepo,
-		tokenRepo:   tokenRepo,
+		balanceRepo:  balanceRepo,
+		tokenRepo:    tokenRepo,
+		transferRepo: transferRepo,
 	}
 }
 
@@ -44,15 +48,23 @@ func (h *BalanceHandler) GetBalancesByAddress(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"address":  address,
-		"balances": balances,
-		"count":    len(balances),
-	})
+	responseBalances := make([]types.TokenBalance, 0, len(balances))
+	for _, balance := range balances {
+		responseBalances = append(responseBalances, types.TokenBalance{
+			TokenPath: balance.TokenPath,
+			Amount:    balance.Amount,
+		})
+	}
+
+	response := types.BalanceResponse{
+		Balances: responseBalances,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
-// GetBalancesByToken handles GET /tokens/{tokenPath}/balances?address={address}
-func (h *BalanceHandler) GetBalancesByToken(c *gin.Context) {
+// GetBalancesByTokenAndAddress handles GET /tokens/{tokenPath}/balances?address={address}
+func (h *BalanceHandler) GetBalancesByTokenAndAddress(c *gin.Context) {
 	tokenPath := c.Param("tokenPath")
 	address := c.Query("address")
 
@@ -65,7 +77,7 @@ func (h *BalanceHandler) GetBalancesByToken(c *gin.Context) {
 
 	if address == "" {
 		// Get all balances for the token
-		balances, err := h.balanceRepo.GetBalancesByToken(c.Request.Context(), tokenPath)
+		balances, err := h.balanceRepo.GetBalancesByTokenAndAddress(c.Request.Context(), tokenPath)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "failed to get balances: " + err.Error(),
@@ -73,11 +85,20 @@ func (h *BalanceHandler) GetBalancesByToken(c *gin.Context) {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"tokenPath": tokenPath,
-			"balances":  balances,
-			"count":     len(balances),
-		})
+		accountBalances := make([]types.AccountBalance, 0, len(balances))
+		for _, balance := range balances {
+			accountBalances = append(accountBalances, types.AccountBalance{
+				Address:   balance.Address,
+				TokenPath: balance.TokenPath,
+				Amount:    balance.Amount,
+			})
+		}
+
+		response := types.AccountBalanceResponse{
+			AccountBalances: accountBalances,
+		}
+
+		c.JSON(http.StatusOK, response)
 		return
 	}
 
@@ -98,11 +119,19 @@ func (h *BalanceHandler) GetBalancesByToken(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"tokenPath": tokenPath,
-		"address":   address,
-		"balance":   balance,
-	})
+	accountBalances := []types.AccountBalance{
+		{
+			Address:   balance.Address,
+			TokenPath: balance.TokenPath,
+			Amount:    balance.Amount,
+		},
+	}
+
+	response := types.AccountBalanceResponse{
+		AccountBalances: accountBalances,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // GetTransferHistory handles GET /tokens/transfer-history?address={address}
@@ -129,14 +158,28 @@ func (h *BalanceHandler) GetTransferHistory(c *gin.Context) {
 		limit = 20
 	}
 
-	// TODO: Implement transfer history repository
-	// For now, return a placeholder response
-	c.JSON(http.StatusOK, gin.H{
-		"address":   address,
-		"page":      page,
-		"limit":     limit,
-		"message":   "Transfer history endpoint - implementation pending",
-		"transfers": []gin.H{},
-		"total":     0,
-	})
+	// Transfer history
+	transfers, err := h.transferRepo.GetByAddress(c.Request.Context(), address)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to get transfer history: " + err.Error(),
+		})
+		return
+	}
+
+	responseTransfers := make([]types.TransferRecord, 0, len(transfers))
+	for _, transfer := range transfers {
+		responseTransfers = append(responseTransfers, types.TransferRecord{
+			FromAddress: transfer.FromAddress,
+			ToAddress:   transfer.ToAddress,
+			TokenPath:   transfer.TokenPath,
+			Amount:      transfer.Amount,
+		})
+	}
+
+	response := types.TransferHistoryResponse{
+		Transfers: responseTransfers,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
