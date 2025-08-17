@@ -8,7 +8,7 @@ import (
 	"log"
 )
 
-// BalanceService handles token balance calculations
+// BalanceService handles balance calculation and updates
 type BalanceService struct {
 	balanceRepo repository.BalanceRepository
 	tokenRepo   repository.TokenRepository
@@ -25,21 +25,16 @@ func NewBalanceService(
 	}
 }
 
-// ProcessEvent processes a parsed event and updates balances
+// ProcessEvent processes a parsed event and updates balances accordingly
 func (bs *BalanceService) ProcessEvent(ctx context.Context, event *domain.ParsedEvent) error {
 	log.Printf("BalanceService: processing event %s for token %s", event.Type, event.TokenPath)
 
-	// Ensure token exists
-	if err := bs.tokenRepo.RegisterIfNotExists(ctx, event.TokenPath); err != nil {
-		return fmt.Errorf("register token: %w", err)
-	}
-
 	switch event.Type {
-	case "Mint":
+	case "MINT":
 		return bs.processMintEvent(ctx, event)
-	case "Burn":
+	case "BURN":
 		return bs.processBurnEvent(ctx, event)
-	case "Transfer":
+	case "TRANSFER":
 		return bs.processTransferEvent(ctx, event)
 	default:
 		log.Printf("BalanceService: unknown event type %s, skipping", event.Type)
@@ -101,7 +96,7 @@ func (bs *BalanceService) updateBalance(ctx context.Context, tokenPath, address 
 			currentBalance = &domain.Balance{
 				TokenPath: tokenPath,
 				Address:   address,
-				Amount:    0,
+				Amount:    domain.NewU64(0),
 			}
 		} else {
 			return fmt.Errorf("get current balance: %w", err)
@@ -110,13 +105,21 @@ func (bs *BalanceService) updateBalance(ctx context.Context, tokenPath, address 
 
 	// Calculate new balance
 	var newAmount int64
-	if isIncrease {
-		newAmount = currentBalance.Amount + amount
+	if currentBalance.Amount != nil {
+		if isIncrease {
+			newAmount = currentBalance.Amount.Int64() + amount
+		} else {
+			newAmount = currentBalance.Amount.Int64() - amount
+			// Ensure balance doesn't go negative
+			if newAmount < 0 {
+				log.Printf("BalanceService: warning - balance would go negative for %s %s, setting to 0", tokenPath, address)
+				newAmount = 0
+			}
+		}
 	} else {
-		newAmount = currentBalance.Amount - amount
-		// Ensure balance doesn't go negative
-		if newAmount < 0 {
-			log.Printf("BalanceService: warning - balance would go negative for %s %s, setting to 0", tokenPath, address)
+		if isIncrease {
+			newAmount = amount
+		} else {
 			newAmount = 0
 		}
 	}
@@ -125,7 +128,7 @@ func (bs *BalanceService) updateBalance(ctx context.Context, tokenPath, address 
 	balance := &domain.Balance{
 		TokenPath: tokenPath,
 		Address:   address,
-		Amount:    newAmount,
+		Amount:    domain.NewU64(newAmount),
 	}
 
 	// Try to update first, if it fails (not found), create new
@@ -140,7 +143,11 @@ func (bs *BalanceService) updateBalance(ctx context.Context, tokenPath, address 
 			return fmt.Errorf("update balance: %w", err)
 		}
 	} else {
-		log.Printf("BalanceService: updated balance for %s %s: %d -> %d", tokenPath, address, currentBalance.Amount, newAmount)
+		currentAmount := int64(0)
+		if currentBalance.Amount != nil {
+			currentAmount = currentBalance.Amount.Int64()
+		}
+		log.Printf("BalanceService: updated balance for %s %s: %d -> %d", tokenPath, address, currentAmount, newAmount)
 	}
 
 	return nil

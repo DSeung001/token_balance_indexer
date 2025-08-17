@@ -50,9 +50,13 @@ func (h *BalanceHandler) GetBalancesByAddress(c *gin.Context) {
 
 	responseBalances := make([]types.TokenBalance, 0, len(balances))
 	for _, balance := range balances {
+		amount := int64(0)
+		if balance.Amount != nil {
+			amount = balance.Amount.Int64()
+		}
 		responseBalances = append(responseBalances, types.TokenBalance{
 			TokenPath: balance.TokenPath,
-			Amount:    balance.Amount,
+			Amount:    amount,
 		})
 	}
 
@@ -87,10 +91,14 @@ func (h *BalanceHandler) GetBalancesByTokenAndAddress(c *gin.Context) {
 
 		accountBalances := make([]types.AccountBalance, 0, len(balances))
 		for _, balance := range balances {
+			amount := int64(0)
+			if balance.Amount != nil {
+				amount = balance.Amount.Int64()
+			}
 			accountBalances = append(accountBalances, types.AccountBalance{
 				Address:   balance.Address,
 				TokenPath: balance.TokenPath,
-				Amount:    balance.Amount,
+				Amount:    amount,
 			})
 		}
 
@@ -119,11 +127,16 @@ func (h *BalanceHandler) GetBalancesByTokenAndAddress(c *gin.Context) {
 		return
 	}
 
+	amount := int64(0)
+	if balance.Amount != nil {
+		amount = balance.Amount.Int64()
+	}
+
 	accountBalances := []types.AccountBalance{
 		{
 			Address:   balance.Address,
 			TokenPath: balance.TokenPath,
-			Amount:    balance.Amount,
+			Amount:    amount,
 		},
 	}
 
@@ -169,11 +182,15 @@ func (h *BalanceHandler) GetTransferHistory(c *gin.Context) {
 
 	responseTransfers := make([]types.TransferRecord, 0, len(transfers))
 	for _, transfer := range transfers {
+		amount := int64(0)
+		if transfer.Amount != nil {
+			amount = transfer.Amount.Int64()
+		}
 		responseTransfers = append(responseTransfers, types.TransferRecord{
 			FromAddress: transfer.FromAddress,
 			ToAddress:   transfer.ToAddress,
 			TokenPath:   transfer.TokenPath,
-			Amount:      transfer.Amount,
+			Amount:      amount,
 		})
 	}
 

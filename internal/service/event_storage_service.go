@@ -113,7 +113,7 @@ func (ess *EventStorageService) processSingleEvent(ctx context.Context, event *d
 		TokenPath:   event.TokenPath,
 		FromAddress: event.FromAddress,
 		ToAddress:   event.ToAddress,
-		Amount:      event.Amount,
+		Amount:      domain.NewU64(event.Amount),
 		BlockHeight: event.BlockHeight,
 		CreatedAt:   time.Now(),
 	}
