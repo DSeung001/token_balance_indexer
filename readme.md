@@ -1,8 +1,9 @@
 # GN Indexer 
 
 ## 실행 방법
+- env는 그대로 쓰셔도 됨, docker-compose에 맞춤
 
-## 설계 의도
+## 시나리오
 
 ## 프로세스 흐름도
 
@@ -32,38 +33,17 @@ gn-indexer/
 └── README.md
 ```
 
-## 환경 설정
-로컬 개발 용이므로 .env는 저장소에 있는 그대로 가져다가 쓰시면 됩니다.
+## 설계 의도
+- monorepo
+- 각 명령어 기능
 
-```env
-# Postgres
-POSTGRES_USER=app
-POSTGRES_PASSWORD=app
-POSTGRES_DB=indexer
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-DATABASE_URL=postgres://app:app@127.0.0.1:5432/indexer?sslmode=disable
+## 테이블 구조
 
-# LocalStack (SQS)
-AWS_ACCESS_KEY_ID=test
-AWS_SECRET_ACCESS_KEY=test
-AWS_DEFAULT_REGION=ap-northeast-2
-AWS_REGION=ap-northeast-2
-LOCALSTACK_EDGE_PORT=4566
-LOCALSTACK_URL=http://localhost:4566
-LOCALSTACK_INTERNAL_URL=http://localstack:4566
-SQS_QUEUE_NAME=gn-token-events
-
-# Compose
-COMPOSE_PROJECT_NAME=gnindexer
-NETWORK_NAME=app-net
-
-# GraphQL URL
-GRAPHQL_ENDPOINT=https://dev-indexer.api.gnoswap.io/graphql/query
-GRAPHQL_WS_ENDPOINT=wss://dev-indexer.api.gnoswap.io/graphql/query
-```
+## 파싱 문제
 
 ## 고도화
+- MSA를 위한 프로젝트 분리
+- 모델, 도메인 분리
 
 ## 실행 명령어
 

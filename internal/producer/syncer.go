@@ -11,6 +11,11 @@ import (
 	"gn-indexer/internal/repository"
 )
 
+// EventProcessor defines the interface for processing transactions
+type EventProcessor interface {
+	ProcessTransaction(ctx context.Context, tx *domain.Transaction) error
+}
+
 type Syncer struct {
 	blockClient *client.GraphQLClient[types.BlocksDataArr]
 	txClient    *client.GraphQLClient[types.TxsData]
@@ -19,9 +24,10 @@ type Syncer struct {
 	// Use repositories instead of direct DB access
 	blockRepo       repository.BlockRepository
 	transactionRepo repository.TransactionRepository
-}
 
-// ... existing types ...
+	// Use interface instead of concrete type to avoid circular import
+	eventProcessor EventProcessor
+}
 
 func NewSyncer(
 	client *client.GraphQLClient[types.BlocksDataArr],
@@ -29,6 +35,7 @@ func NewSyncer(
 	subClient *client.SubscriptionClient,
 	blockRepo repository.BlockRepository,
 	transactionRepo repository.TransactionRepository,
+	eventProcessor EventProcessor,
 ) *Syncer {
 	syncer := &Syncer{
 		blockClient:     client,
@@ -36,6 +43,7 @@ func NewSyncer(
 		subClient:       subClient,
 		blockRepo:       blockRepo,
 		transactionRepo: transactionRepo,
+		eventProcessor:  eventProcessor,
 	}
 
 	return syncer
@@ -83,6 +91,15 @@ func (s *Syncer) SyncTxs(ctx context.Context, fromHeight, toHeight int) error {
 		if err := s.transactionRepo.SaveTransaction(ctx, tx); err != nil {
 			log.Printf("failed to save transaction: %v", err)
 			continue
+		}
+
+		// Process transaction for events and send to SQS queue
+		if s.eventProcessor != nil {
+			// tx is already domain.Transaction type, convert to pointer
+			if err := s.eventProcessor.ProcessTransaction(ctx, &tx); err != nil {
+				log.Printf("failed to process transaction events: %v", err)
+				// Don't fail the sync if event processing fails
+			}
 		}
 	}
 	// 실제 저장된 트랜잭션의 높이 범위 계산

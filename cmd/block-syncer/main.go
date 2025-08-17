@@ -6,14 +6,14 @@ import (
 	"gn-indexer/internal/client"
 	"gn-indexer/internal/config"
 	"gn-indexer/internal/producer"
+	"gn-indexer/internal/queue"
 	"gn-indexer/internal/repository"
+	"gn-indexer/internal/service"
 	"gn-indexer/internal/types"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"gn-indexer/internal/service"
 
 	"github.com/joho/godotenv"
 )
@@ -47,6 +47,24 @@ func main() {
 
 	ctx := context.Background()
 
+	// Load queue configuration for SQS
+	queueConfig := &queue.QueueConfig{
+		QueueName:          getEnv("SQS_QUEUE_NAME", "gn-token-events"),
+		EndpointURL:        getEnv("LOCALSTACK_URL", "http://localhost:4566"),
+		Region:             getEnv("AWS_DEFAULT_REGION", "ap-northeast-2"),
+		AccessKeyID:        getEnv("AWS_ACCESS_KEY_ID", "test"),
+		SecretAccessKey:    getEnv("AWS_SECRET_ACCESS_KEY", "test"),
+		MaxReceiveMessages: 10,
+		VisibilityTimeout:  30,
+	}
+
+	// create SQS queue
+	eventQueue, err := queue.NewSQSQueue(queueConfig)
+	if err != nil {
+		log.Fatalf("failed to create SQS queue: %v", err)
+	}
+	defer eventQueue.Close()
+
 	// http client
 	cliBlocks := client.NewGraphQLClient[types.BlocksDataArr](gqlEndpoint)
 	cliTxs := client.NewGraphQLClient[types.TxsData](gqlEndpoint)
@@ -57,14 +75,28 @@ func main() {
 	// create repositories directly
 	blockRepo := repository.NewBlockRepository(gormDb)
 	transactionRepo := repository.NewTransactionRepository(gormDb)
+	eventRepo := repository.NewEventRepository(gormDb)
+	eventAttrRepo := repository.NewEventAttrRepository(gormDb)
+	transferRepo := repository.NewTransferRepository(gormDb)
+	tokenRepo := repository.NewTokenRepository(gormDb)
 
-	// sync with repositories
+	// create event storage service for parsing and queuing events
+	eventStorageService := service.NewEventStorageService(
+		eventRepo,
+		eventAttrRepo,
+		transferRepo,
+		tokenRepo,
+		eventQueue,
+	)
+
+	// sync with repositories and event storage service
 	syncer := producer.NewSyncer(
 		cliBlocks,
 		cliTxs,
 		subClient,
 		blockRepo,
 		transactionRepo,
+		eventStorageService, // Add event storage service
 	)
 
 	if *realtime {
@@ -150,4 +182,12 @@ func main() {
 		log.Println("  --from <height> --to <height>: Sync specific range (from defaults to 1, to defaults to 1000)")
 		log.Println("  No flags: Sync from height 1 to 1000 (default behavior)")
 	}
+}
+
+// getEnv gets environment variable with fallback
+func getEnv(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
