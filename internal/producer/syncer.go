@@ -45,8 +45,8 @@ func NewSyncer(
 func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error {
 	var bd types.BlocksDataArr
 	if err := s.blockClient.Do(ctx, QBlocks, map[string]interface{}{
-		"gt": fromHeight,
-		"lt": toHeight,
+		"gt": fromHeight - 1, // fromHeight-1보다 큰 값 = fromHeight부터
+		"lt": toHeight + 1,   // toHeight+1보다 작은 값 = toHeight까지
 	}, &bd); err != nil {
 		return fmt.Errorf("sync blocks: %w", err)
 	}
@@ -57,7 +57,14 @@ func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error
 			continue
 		}
 	}
-	log.Printf("synced %d blocks from height %d to %d", len(bd.GetBlocks), fromHeight, toHeight)
+	// 실제 저장된 블록의 높이 범위 계산
+	if len(bd.GetBlocks) > 0 {
+		minHeight := bd.GetBlocks[0].Height
+		maxHeight := bd.GetBlocks[len(bd.GetBlocks)-1].Height
+		log.Printf("synced %d blocks from height %d to %d", len(bd.GetBlocks), minHeight, maxHeight)
+	} else {
+		log.Printf("synced 0 blocks (no blocks in range %d to %d)", fromHeight+1, toHeight)
+	}
 	return nil
 }
 
@@ -65,8 +72,8 @@ func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error
 func (s *Syncer) SyncTxs(ctx context.Context, fromHeight, toHeight int) error {
 	var td types.TxsData
 	if err := s.txClient.Do(ctx, QTxs, map[string]interface{}{
-		"gt":   fromHeight,
-		"lt":   toHeight,
+		"gt":   fromHeight - 1, // fromHeight-1보다 큰 값 = fromHeight부터
+		"lt":   toHeight + 1,   // toHeight+1보다 작은 값 = toHeight까지
 		"imax": 1000,
 	}, &td); err != nil {
 		return fmt.Errorf("sync transactions: %w", err)
@@ -78,7 +85,14 @@ func (s *Syncer) SyncTxs(ctx context.Context, fromHeight, toHeight int) error {
 			continue
 		}
 	}
-	log.Printf("synced %d transactions from height %d to %d", len(td.GetTransactions), fromHeight, toHeight)
+	// 실제 저장된 트랜잭션의 높이 범위 계산
+	if len(td.GetTransactions) > 0 {
+		minHeight := td.GetTransactions[0].BlockHeight
+		maxHeight := td.GetTransactions[len(td.GetTransactions)-1].BlockHeight
+		log.Printf("synced %d transactions from height %d to %d", len(td.GetTransactions), minHeight, maxHeight)
+	} else {
+		log.Printf("synced 0 transactions (no transactions in range %d to %d)", fromHeight+1, toHeight)
+	}
 	return nil
 }
 
@@ -89,12 +103,12 @@ func (s *Syncer) GetLastSyncedHeight(ctx context.Context) (int, error) {
 
 // SyncRange synchronizes both blocks and transactions within a height range
 func (s *Syncer) SyncRange(ctx context.Context, fromHeight, toHeight int) error {
-	// Call SyncBlocks with fromHeight-1 to include fromHeight
-	if err := s.SyncBlocks(ctx, fromHeight-1, toHeight); err != nil {
+	// Call SyncBlocks with fromHeight to toHeight (inclusive)
+	if err := s.SyncBlocks(ctx, fromHeight, toHeight); err != nil {
 		return fmt.Errorf("failed to sync blocks: %w", err)
 	}
-	// Call SyncTxs with fromHeight-1 to include fromHeight
-	if err := s.SyncTxs(ctx, fromHeight-1, toHeight); err != nil {
+	// Call SyncTxs with fromHeight to toHeight (inclusive)
+	if err := s.SyncTxs(ctx, fromHeight, toHeight); err != nil {
 		return fmt.Errorf("failed to sync transactions: %w", err)
 	}
 	return nil

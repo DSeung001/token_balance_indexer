@@ -88,7 +88,7 @@ func (dis *DataIntegrityService) syncRangeWithChunks(ctx context.Context, fromHe
 			to = toHeight
 		}
 
-		log.Printf("DataIntegrityService: syncing chunk %d/%d (height %d to %d)",
+		log.Printf("DataIntegrityService: syncing chunk %d/%d (height %d~%d)",
 			currentChunk, totalChunks, from, to)
 
 		if err := dis.SyncRange(ctx, from, to); err != nil {
@@ -100,7 +100,7 @@ func (dis *DataIntegrityService) syncRangeWithChunks(ctx context.Context, fromHe
 		log.Printf("DataIntegrityService: chunk %d/%d completed successfully", currentChunk, totalChunks)
 	}
 
-	log.Printf("DataIntegrityService: completed - %d/%d chunks successful, synced blocks %d to %d",
+	log.Printf("DataIntegrityService: completed - %d/%d chunks successful, synced blocks %d~%d",
 		successCount, totalChunks, fromHeight, toHeight)
 
 	if successCount > 0 {
