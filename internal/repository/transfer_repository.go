@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gn-indexer/internal/domain"
+
 	"gorm.io/gorm"
 )
 
@@ -13,6 +14,7 @@ type TransferRepository interface {
 	GetByTxHash(ctx context.Context, txHash string) ([]domain.Transfer, error)
 	GetByAddress(ctx context.Context, address string) ([]domain.Transfer, error)
 	GetByTokenPath(ctx context.Context, tokenPath string) ([]domain.Transfer, error)
+	GetAll(ctx context.Context) ([]domain.Transfer, error)
 }
 
 type postgresTransferRepository struct {
@@ -84,6 +86,20 @@ func (r *postgresTransferRepository) GetByTokenPath(ctx context.Context, tokenPa
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transfers by token path: %w", err)
+	}
+
+	return transfers, nil
+}
+
+// GetAll retrieves all transfers
+func (r *postgresTransferRepository) GetAll(ctx context.Context) ([]domain.Transfer, error) {
+	var transfers []domain.Transfer
+	err := r.db.WithContext(ctx).
+		Order("block_height DESC, event_index DESC").
+		Find(&transfers).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all transfers: %w", err)
 	}
 
 	return transfers, nil

@@ -1,6 +1,11 @@
 # Balance API 테스트 가이드
 트랜잭션에서 가져온 이벤트에서 Type이 Transfer, func가 Mint, Burn, Transfer인 것을 찾을 수 없어서 API 테스트를 위해 추가하였습니다.<br/>
 아래와 같이 func은 ""이고 type이 "Transfer"로 데이터를 받아왔지만 가이드 문서의 토큰 전송 이벤트와 동일하지 않아 파싱 부분은 가이드대로 개발하고 보류해두었습니다.
+
+데이터 때문에 [balance_api_insert_mock_data.sql](mock-data/balance_api_insert_mock_data.sql)가 안될 경우 [balance_api_cleanup_mock_data.sql](mock-data/balance_api_cleanup_mock_data.sql)을 먼저 실행 시킨 뒤 실행
+<br/>
+※ 주의: 테스트를 위한 sql 문이므로 사용의 주의 필요 ※
+
 ```json
 {
   "events": [
@@ -152,19 +157,19 @@ curl "http://localhost:8080/tokens/gno.land/r/gnoswap/v1/test_token/foo/balances
 ```bash
 curl "http://localhost:8080/tokens/transfer-history?address=g1jg8mtutu9khhfwc4nxmuhcpftf0pajdhfvsqf5"
 ```
-**예상 결과**: 2개 전송 내역 (WUGNOT, BAR)
+**예상 결과**: 5개 전송 내역 (보내기: BAR 150000, WUGNOT 100000 / 받기: BAR 300000, GNS 1000000, WUGNOT 500000)
 
 #### 테스트 계정 2의 전송 내역
 ```bash
 curl "http://localhost:8080/tokens/transfer-history?address=g1ffzxha57dh0qgv9ma5v393ur0zexfvp6lsjpae"
 ```
-**예상 결과**: 1개 전송 내역 (GNS)
+**예상 결과**: 5개 전송 내역 (보내기: GNS 500000 / 받기: WUGNOT 100000, BAR 700000, GNS 2000000, WUGNOT 500000)
 
 #### 테스트 계정 3의 전송 내역
 ```bash
 curl "http://localhost:8080/tokens/transfer-history?address=g17290cwvmrapvp869xfnhhawa8sm9edpufzat7d"
 ```
-**예상 결과**: 전송 내역 없음 (받기만 함)
+**예상 결과**: 5개 전송 내역 (받기만: BAR 150000, GNS 500000, FOO 2500000, GNS 1500000, WUGNOT 1000000)
 
 ### 4. 특정 토큰의 특정 주소 잔액 조회
 

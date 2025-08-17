@@ -1,13 +1,14 @@
 package api
 
 import (
-	"net/http"
-	"strconv"
-
+	"github.com/gin-gonic/gin"
 	"gn-indexer/internal/repository"
 	"gn-indexer/internal/types"
-
-	"github.com/gin-gonic/gin"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 // BalanceHandler handles balance-related API requests
@@ -33,13 +34,38 @@ func NewBalanceHandler(
 // GetBalancesByAddress handles GET /tokens/balances?address={address}
 func (h *BalanceHandler) GetBalancesByAddress(c *gin.Context) {
 	address := c.Query("address")
+
 	if address == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "address parameter is required",
-		})
+		// Get all balances for all addresses
+		balances, err := h.balanceRepo.GetAllBalances(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "failed to get all balances: " + err.Error(),
+			})
+			return
+		}
+
+		responseBalances := make([]types.TokenBalance, 0, len(balances))
+		for _, balance := range balances {
+			amount := int64(0)
+			if balance.Amount != nil {
+				amount = balance.Amount.Int64()
+			}
+			responseBalances = append(responseBalances, types.TokenBalance{
+				TokenPath: balance.TokenPath,
+				Amount:    amount,
+			})
+		}
+
+		response := types.BalanceResponse{
+			Balances: responseBalances,
+		}
+
+		c.JSON(http.StatusOK, response)
 		return
 	}
 
+	// Get balances for specific address
 	balances, err := h.balanceRepo.GetBalancesByAddress(c.Request.Context(), address)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -67,25 +93,50 @@ func (h *BalanceHandler) GetBalancesByAddress(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// precompile once at package level (optional but nice)
+var reTokenBalances = regexp.MustCompile(`^/tokens/(.+)/balances$`)
+
 // GetBalancesByTokenAndAddress handles GET /tokens/{tokenPath}/balances?address={address}
 func (h *BalanceHandler) GetBalancesByTokenAndAddress(c *gin.Context) {
-	tokenPath := c.Param("tokenPath")
-	address := c.Query("address")
+	raw := c.Param("tokenPath")
 
+	// Example raw path: /tokens/gno.land/r/demo/wugnot/balances
+	if raw == "" {
+		path := c.Request.URL.Path
+		// Normalize backslashes if any (defensive)
+		path = strings.ReplaceAll(path, `\`, `/`)
+
+		if m := reTokenBalances.FindStringSubmatch(path); len(m) == 2 {
+			raw = m[1]
+		}
+	}
+
+	// URL-decode in case client sent %2F etc.
+	tokenPath, err := url.PathUnescape(raw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid tokenPath: " + err.Error()})
+		return
+	}
+	tokenPath = strings.Trim(tokenPath, "/")
 	if tokenPath == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "tokenPath parameter is required",
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tokenPath parameter is required"})
 		return
 	}
 
+	// (Optional) sanity check for allowed characters
+	if !regexp.MustCompile(`^[A-Za-z0-9._\-/]+$`).MatchString(tokenPath) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid tokenPath format"})
+		return
+	}
+
+	// Read optional address query
+	address := c.Query("address")
+
+	// Case A: no address → all balances for the token
 	if address == "" {
-		// Get all balances for the token
 		balances, err := h.balanceRepo.GetBalancesByTokenAndAddress(c.Request.Context(), tokenPath)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "failed to get balances: " + err.Error(),
-			})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get balances: " + err.Error()})
 			return
 		}
 
@@ -97,7 +148,7 @@ func (h *BalanceHandler) GetBalancesByTokenAndAddress(c *gin.Context) {
 			}
 			accountBalances = append(accountBalances, types.AccountBalance{
 				Address:   balance.Address,
-				TokenPath: balance.TokenPath,
+				TokenPath: balance.TokenPath, // or tokenPath to normalize
 				Amount:    amount,
 			})
 		}
@@ -105,12 +156,11 @@ func (h *BalanceHandler) GetBalancesByTokenAndAddress(c *gin.Context) {
 		response := types.AccountBalanceResponse{
 			AccountBalances: accountBalances,
 		}
-
 		c.JSON(http.StatusOK, response)
 		return
 	}
 
-	// Get specific balance for token and address
+	// Case B: address provided → single balance for (tokenPath, address)
 	balance, err := h.balanceRepo.GetBalance(c.Request.Context(), tokenPath, address)
 	if err != nil {
 		if err == repository.ErrBalanceNotFound {
@@ -121,9 +171,7 @@ func (h *BalanceHandler) GetBalancesByTokenAndAddress(c *gin.Context) {
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to get balance: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get balance: " + err.Error()})
 		return
 	}
 
@@ -132,28 +180,49 @@ func (h *BalanceHandler) GetBalancesByTokenAndAddress(c *gin.Context) {
 		amount = balance.Amount.Int64()
 	}
 
-	accountBalances := []types.AccountBalance{
-		{
-			Address:   balance.Address,
-			TokenPath: balance.TokenPath,
-			Amount:    amount,
-		},
-	}
-
 	response := types.AccountBalanceResponse{
-		AccountBalances: accountBalances,
+		AccountBalances: []types.AccountBalance{{
+			Address:   balance.Address,
+			TokenPath: balance.TokenPath, // or tokenPath to normalize
+			Amount:    amount,
+		}},
 	}
-
 	c.JSON(http.StatusOK, response)
 }
 
 // GetTransferHistory handles GET /tokens/transfer-history?address={address}
 func (h *BalanceHandler) GetTransferHistory(c *gin.Context) {
 	address := c.Query("address")
+
 	if address == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "address parameter is required",
-		})
+		// Get all transfer history
+		transfers, err := h.transferRepo.GetAll(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "failed to get all transfer history: " + err.Error(),
+			})
+			return
+		}
+
+		responseTransfers := make([]types.TransferRecord, 0, len(transfers))
+		for _, transfer := range transfers {
+			amount := int64(0)
+			if transfer.Amount != nil {
+				amount = transfer.Amount.Int64()
+			}
+			responseTransfers = append(responseTransfers, types.TransferRecord{
+				FromAddress: transfer.FromAddress,
+				ToAddress:   transfer.ToAddress,
+				TokenPath:   transfer.TokenPath,
+				Amount:      amount,
+			})
+		}
+
+		response := types.TransferHistoryResponse{
+			Transfers: responseTransfers,
+		}
+
+		c.JSON(http.StatusOK, response)
 		return
 	}
 
@@ -171,7 +240,7 @@ func (h *BalanceHandler) GetTransferHistory(c *gin.Context) {
 		limit = 20
 	}
 
-	// Transfer history
+	// Transfer history for specific address
 	transfers, err := h.transferRepo.GetByAddress(c.Request.Context(), address)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

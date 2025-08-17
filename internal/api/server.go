@@ -3,6 +3,9 @@ package api
 import (
 	"gn-indexer/internal/repository"
 	"log"
+	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,15 +43,17 @@ func NewServer(
 
 // setupRoutes configures all API routes
 func (s *Server) setupRoutes() {
-	// Health check
+	// Health
 	s.router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok", "service": "gn-indexer-api"})
 	})
 
-	// API routes
+	// Concrete routes under /tokens
 	s.router.GET("/tokens/balances", s.balanceHandler.GetBalancesByAddress)
-	s.router.GET("/tokens/:tokenPath/balances", s.balanceHandler.GetBalancesByTokenAndAddress)
 	s.router.GET("/tokens/transfer-history", s.balanceHandler.GetTransferHistory)
+
+	// /tokens/:tokenPath/balances handling
+	s.router.NoRoute(s.tokenRouteFallback())
 }
 
 // Run starts the HTTP server
@@ -60,4 +65,40 @@ func (s *Server) Run(addr string) error {
 // GetRouter returns the underlying Gin router (useful for testing)
 func (s *Server) GetRouter() *gin.Engine {
 	return s.router
+}
+
+// tokenRouteFallback tries to recover tokenPath from a raw path like
+func (s *Server) tokenRouteFallback() gin.HandlerFunc {
+	// Precompile regex once
+	var re = regexp.MustCompile(`^/tokens/(.+)/balances$`)
+
+	return func(c *gin.Context) {
+		path := c.Request.URL.Path
+
+		// Normalize backslashes to forward slashes (in case client sent '\')
+		path = strings.ReplaceAll(path, `\`, `/`)
+
+		// Try to match /tokens/{tokenPath}/balances
+		m := re.FindStringSubmatch(path)
+		if len(m) == 2 {
+			tokenPath := strings.Trim(m[1], "/")
+			if tokenPath != "" {
+				// Inject tokenPath so the original handler can read c.Param("tokenPath")
+				c.Params = append(c.Params, gin.Param{Key: "tokenPath", Value: tokenPath})
+
+				// Call the existing handler
+				s.balanceHandler.GetBalancesByTokenAndAddress(c)
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": "tokenPath parameter is required"})
+			return
+		}
+
+		// Not our pattern → keep 404
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":  "route not found",
+			"path":   c.Request.URL.Path,
+			"detail": "check path or query params",
+		})
+	}
 }
