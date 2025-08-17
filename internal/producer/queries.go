@@ -1,4 +1,4 @@
-package api
+package producer
 
 const QBlocks = `
 query($gt:Int!, $lt:Int!){

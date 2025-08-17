@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"gn-indexer/internal/api"
 	"gn-indexer/internal/client"
 	"gn-indexer/internal/producer"
 	"gn-indexer/internal/types"
@@ -40,7 +39,7 @@ func (bs *BackfillService) BackfillToLatest(ctx context.Context) error {
 
 	// Get current block height from websocket (one-time subscription)
 	var currentHeight int
-	err = backfillSubClient.SubscribeOnce(ctx, api.SBlocks, nil, func(data types.BlocksData) error {
+	err = backfillSubClient.SubscribeOnce(ctx, producer.SBlocks, nil, func(data types.BlocksData) error {
 		currentHeight = data.GetBlocks.Height
 		return nil
 	})

@@ -40,7 +40,7 @@ func (r *postgresBlockRepository) SaveBlock(ctx context.Context, block domain.Bl
 // GetLastSyncedHeight returns the height of the last synchronized block
 func (r *postgresBlockRepository) GetLastSyncedHeight(ctx context.Context) (int, error) {
 	var lastHeight int
-	err := r.db.WithContext(ctx).Model(&domain.Block{}).Select("COALESCE(MAX(height), 0)").Scan(&lastHeight).Error
+	err := r.db.WithContext(ctx).Model(&domain.Block{}).Select("COALESCE(MAX(height), 1)").Scan(&lastHeight).Error
 	if err != nil {
 		return 0, fmt.Errorf("failed to get last block height: %w", err)
 	}

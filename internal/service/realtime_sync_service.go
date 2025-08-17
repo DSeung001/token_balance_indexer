@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"gn-indexer/internal/api"
 	"gn-indexer/internal/client"
 	"gn-indexer/internal/domain"
 	"gn-indexer/internal/producer"
@@ -49,7 +48,7 @@ func (rs *RealtimeSyncService) startSubscription(ctx context.Context) error {
 	}
 
 	// Start the subscription
-	err := rs.subClient.Subscribe(ctx, api.SBlocks, nil, rs.handleSubscriptionData)
+	err := rs.subClient.Subscribe(ctx, producer.SBlocks, nil, rs.handleSubscriptionData)
 	if err != nil {
 		return fmt.Errorf("failed to start subscription: %w", err)
 	}

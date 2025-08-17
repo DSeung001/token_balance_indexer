@@ -3,7 +3,6 @@ package producer
 import (
 	"context"
 	"fmt"
-	"gn-indexer/internal/api"
 	"gn-indexer/internal/client"
 	"gn-indexer/internal/types"
 	"log"
@@ -45,7 +44,7 @@ func NewSyncer(
 // SyncBlocks synchronizes blocks within a height range
 func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error {
 	var bd types.BlocksDataArr
-	if err := s.blockClient.Do(ctx, api.QBlocks, map[string]interface{}{
+	if err := s.blockClient.Do(ctx, QBlocks, map[string]interface{}{
 		"gt": fromHeight,
 		"lt": toHeight,
 	}, &bd); err != nil {
@@ -65,7 +64,7 @@ func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error
 // SyncTxs synchronizes transactions within a height range
 func (s *Syncer) SyncTxs(ctx context.Context, fromHeight, toHeight int) error {
 	var td types.TxsData
-	if err := s.txClient.Do(ctx, api.QTxs, map[string]interface{}{
+	if err := s.txClient.Do(ctx, QTxs, map[string]interface{}{
 		"gt":   fromHeight,
 		"lt":   toHeight,
 		"imax": 1000,
