@@ -70,17 +70,33 @@ go run ./cmd/balance-api
 ### 3. 이벤트 처리 서비스 (Consumer)
 
 ```bash
-# Event Processor 서비스 실행
+# Event Processor 서비스 실행 (연속 처리 모드)
 go run ./cmd/event-processor
+
+# 수동 배치 처리 모드 (한 번만 처리 후 종료)
+go run ./cmd/event-processor -manual -batch 20
+
+# 배치 크기 조정 (기본값: 10)
+go run ./cmd/event-processor -batch 50
 ```
 
 ## 사용 시나리오
 
 아래 명령어를 각각 실행하되 주의해야할 점은 realtime을 먼저 한 후, integrity를 실행해야지 백필 서버로써 누락 없이 데이터를 저장할 수 있음 
+
+### **전체 시스템 실행 (연속 처리)**
 ```bash
 go run ./cmd/block-syncer -realtime
 go run ./cmd/block-syncer -integrity
 go run ./cmd/event-processor
+go run ./cmd/balance-api
+```
+
+### **수동 배치 처리 (테스트/디버깅용)**
+```bash
+go run ./cmd/block-syncer -realtime
+go run ./cmd/block-syncer -integrity
+go run ./cmd/event-processor -manual -batch 20
 go run ./cmd/balance-api
 ```
 
@@ -136,8 +152,11 @@ flowchart TD
     H --> I[데이터베이스 저장]
     I --> E
     
-    D --> J[단일 배치 처리]
-    J --> K[처리 완료 후 종료]
+    D --> J[SQS 큐에서 단일 배치 수신]
+    J --> K[이벤트 타입별 분류]
+    K --> L[잔액 업데이트]
+    L --> M[데이터베이스 저장]
+    M --> N[처리 완료 후 종료]
 ```
 
 ### 3. 잔액 조회 API 프로세스
@@ -199,6 +218,10 @@ Balance Service 호출
     ↓
 데이터베이스 저장
 ```
+
+**처리 모드별 차이점:**
+- **Continuous 모드**: SQS 큐에서 지속적으로 이벤트를 수신하여 처리
+- **Manual 모드**: SQS 큐에서 한 번에 배치 크기만큼 이벤트를 수신하여 처리 후 종료
 
 ### 3. API 응답 단계
 
@@ -569,13 +592,28 @@ go run ./cmd/block-syncer -from 1 -to 1000
 go run ./cmd/block-syncer -integrity
 ```
 
-### 3. 개별 서비스
+### 3. 이벤트 처리 모드
+```bash
+# 연속 처리 모드 (기본값)
+go run ./cmd/event-processor
+
+# 수동 배치 처리 모드 (한 번만 처리 후 종료)
+go run ./cmd/event-processor -manual -batch 20
+
+# 배치 크기 조정
+go run ./cmd/event-processor -batch 50
+```
+
+### 4. 개별 서비스
 ```bash
 # Balance API
 go run ./cmd/balance-api
 
-# Event Processor  
+# Event Processor (연속 처리 모드)
 go run ./cmd/event-processor
+
+# Event Processor (수동 배치 처리 모드)
+go run ./cmd/event-processor -manual -batch 20
 ```
 
 ## SQS 테스트
