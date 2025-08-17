@@ -25,8 +25,9 @@ func init() {
 }
 
 func main() {
-	const gqlEndpoint = "https://indexer.onbloc.xyz/graphql/query"
-	const wsEndpoint = "wss://indexer.onbloc.xyz/graphql/query"
+	// GraphQL endpoints from environment variables
+	gqlEndpoint := os.Getenv("GRAPHQL_ENDPOINT")
+	wsEndpoint := os.Getenv("GRAPHQL_WS_ENDPOINT")
 
 	// flag: command line standardization
 	var (
