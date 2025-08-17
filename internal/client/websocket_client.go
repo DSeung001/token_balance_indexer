@@ -1,9 +1,10 @@
-package indexer
+package client
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gn-indexer/internal/types"
 	"log"
 	"sync"
 	"time"
@@ -40,7 +41,7 @@ type Subscription struct {
 	ID      string
 	Query   string
 	Vars    map[string]interface{}
-	Handler func(BlocksData) error
+	Handler func(types.BlocksData) error
 	Active  bool
 }
 
@@ -112,7 +113,7 @@ func (sc *SubscriptionClient) Connect(ctx context.Context) error {
 }
 
 // Subscribe starts a persistent subscription
-func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars map[string]interface{}, handler func(BlocksData) error) error {
+func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars map[string]interface{}, handler func(types.BlocksData) error) error {
 	log.Printf("Subscribe: starting subscription with query: %s", query)
 
 	if err := sc.Connect(ctx); err != nil {
@@ -235,7 +236,7 @@ func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars 
 							jsonData, _ := json.Marshal(data)
 							log.Printf("Subscribe: marshaled data for subscription %s: %s", subID, string(jsonData))
 
-							var blocksData BlocksData
+							var blocksData types.BlocksData
 							if err := json.Unmarshal(jsonData, &blocksData); err == nil {
 								log.Printf("Subscribe: unmarshaled successfully for subscription %s, block height: %d", subID, blocksData.GetBlocks.Height)
 
@@ -291,7 +292,7 @@ func (sc *SubscriptionClient) Subscribe(ctx context.Context, query string, vars 
 }
 
 // SubscribeOnce starts a one-time subscription, receives one data message, then stops
-func (sc *SubscriptionClient) SubscribeOnce(ctx context.Context, query string, vars map[string]interface{}, handler func(BlocksData) error) error {
+func (sc *SubscriptionClient) SubscribeOnce(ctx context.Context, query string, vars map[string]interface{}, handler func(types.BlocksData) error) error {
 	log.Printf("SubscribeOnce: starting one-time subscription with query: %s", query)
 
 	if err := sc.Connect(ctx); err != nil {
@@ -356,7 +357,7 @@ func (sc *SubscriptionClient) SubscribeOnce(ctx context.Context, query string, v
 						jsonData, _ := json.Marshal(data)
 						log.Printf("SubscribeOnce: marshaled data for subscription %s: %s", subID, string(jsonData))
 
-						var blocksData BlocksData
+						var blocksData types.BlocksData
 						if err := json.Unmarshal(jsonData, &blocksData); err == nil {
 							log.Printf("SubscribeOnce: unmarshaled successfully for subscription %s, block height: %d", subID, blocksData.GetBlocks.Height)
 

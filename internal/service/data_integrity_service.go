@@ -3,15 +3,15 @@ package service
 import (
 	"context"
 	"fmt"
-	"gn-indexer/internal/indexer"
+	"gn-indexer/internal/producer"
 	"log"
 )
 
 type DataIntegrityService struct {
-	syncer *indexer.Syncer
+	syncer *producer.Syncer
 }
 
-func NewDataIntegrityService(syncer *indexer.Syncer) *DataIntegrityService {
+func NewDataIntegrityService(syncer *producer.Syncer) *DataIntegrityService {
 	return &DataIntegrityService{
 		syncer: syncer,
 	}

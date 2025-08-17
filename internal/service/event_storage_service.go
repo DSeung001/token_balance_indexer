@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	event_parsing "gn-indexer/internal/consumer"
 	"gn-indexer/internal/domain"
-	event_parsing "gn-indexer/internal/event-parsing"
 	"gn-indexer/internal/repository"
 	"log"
 	"time"

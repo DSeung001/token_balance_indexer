@@ -4,20 +4,22 @@ import (
 	"context"
 	"fmt"
 	"gn-indexer/internal/api"
+	"gn-indexer/internal/client"
 	"gn-indexer/internal/domain"
-	"gn-indexer/internal/indexer"
+	"gn-indexer/internal/producer"
+	"gn-indexer/internal/types"
 	"log"
 	"time"
 )
 
 // RealtimeSyncService handles real-time blockchain data synchronization
 type RealtimeSyncService struct {
-	syncer    *indexer.Syncer
-	subClient *indexer.SubscriptionClient
+	syncer    *producer.Syncer
+	subClient *client.SubscriptionClient
 }
 
 // NewRealtimeSyncService creates a new realtime sync service
-func NewRealtimeSyncService(syncer *indexer.Syncer, subClient *indexer.SubscriptionClient) *RealtimeSyncService {
+func NewRealtimeSyncService(syncer *producer.Syncer, subClient *client.SubscriptionClient) *RealtimeSyncService {
 	return &RealtimeSyncService{
 		syncer:    syncer,
 		subClient: subClient,
@@ -57,7 +59,7 @@ func (rs *RealtimeSyncService) startSubscription(ctx context.Context) error {
 }
 
 // handleSubscriptionData processes incoming real-time block data
-func (rs *RealtimeSyncService) handleSubscriptionData(data indexer.BlocksData) error {
+func (rs *RealtimeSyncService) handleSubscriptionData(data types.BlocksData) error {
 	block := data.GetBlocks
 	log.Printf("RealtimeSyncService: processing block %d", block.Height)
 

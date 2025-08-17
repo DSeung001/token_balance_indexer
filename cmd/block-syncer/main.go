@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"flag"
+	"gn-indexer/internal/client"
 	"gn-indexer/internal/config"
-	"gn-indexer/internal/indexer"
+	"gn-indexer/internal/producer"
 	"gn-indexer/internal/repository"
+	"gn-indexer/internal/types"
 	"log"
 	"os"
 	"os/signal"
@@ -45,18 +47,18 @@ func main() {
 	ctx := context.Background()
 
 	// http client
-	cliBlocks := indexer.NewGraphQLClient[indexer.BlocksDataArr](gqlEndpoint)
-	cliTxs := indexer.NewGraphQLClient[indexer.TxsData](gqlEndpoint)
+	cliBlocks := client.NewGraphQLClient[types.BlocksDataArr](gqlEndpoint)
+	cliTxs := client.NewGraphQLClient[types.TxsData](gqlEndpoint)
 
 	// websocket client
-	subClient := indexer.NewSubscriptionClient(wsEndpoint)
+	subClient := client.NewSubscriptionClient(wsEndpoint)
 
 	// create repositories directly
 	blockRepo := repository.NewBlockRepository(gormDb)
 	transactionRepo := repository.NewTransactionRepository(gormDb)
 
 	// sync with repositories
-	syncer := indexer.NewSyncer(
+	syncer := producer.NewSyncer(
 		cliBlocks,
 		cliTxs,
 		subClient,

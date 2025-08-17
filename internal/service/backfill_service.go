@@ -4,18 +4,20 @@ import (
 	"context"
 	"fmt"
 	"gn-indexer/internal/api"
-	"gn-indexer/internal/indexer"
+	"gn-indexer/internal/client"
+	"gn-indexer/internal/producer"
+	"gn-indexer/internal/types"
 	"log"
 )
 
 // BackfillService handles backfilling of missing blockchain data
 type BackfillService struct {
-	syncer     *indexer.Syncer
+	syncer     *producer.Syncer
 	wsEndpoint string
 }
 
 // NewBackfillService creates a new backfill service
-func NewBackfillService(syncer *indexer.Syncer, wsEndpoint string) *BackfillService {
+func NewBackfillService(syncer *producer.Syncer, wsEndpoint string) *BackfillService {
 	return &BackfillService{
 		syncer:     syncer,
 		wsEndpoint: wsEndpoint,
@@ -33,12 +35,12 @@ func (bs *BackfillService) BackfillToLatest(ctx context.Context) error {
 	log.Printf("BackfillService: starting backfill from height %d", lastHeight)
 
 	// Create a separate websocket client for backfill
-	backfillSubClient := indexer.NewSubscriptionClient(bs.wsEndpoint)
+	backfillSubClient := client.NewSubscriptionClient(bs.wsEndpoint)
 	defer backfillSubClient.Close()
 
 	// Get current block height from websocket (one-time subscription)
 	var currentHeight int
-	err = backfillSubClient.SubscribeOnce(ctx, api.SBlocks, nil, func(data indexer.BlocksData) error {
+	err = backfillSubClient.SubscribeOnce(ctx, api.SBlocks, nil, func(data types.BlocksData) error {
 		currentHeight = data.GetBlocks.Height
 		return nil
 	})

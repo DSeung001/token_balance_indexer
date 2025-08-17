@@ -1,34 +1,21 @@
-package indexer
+package producer
 
 import (
 	"context"
 	"fmt"
 	"gn-indexer/internal/api"
+	"gn-indexer/internal/client"
+	"gn-indexer/internal/types"
 	"log"
 
 	"gn-indexer/internal/domain"
 	"gn-indexer/internal/repository"
 )
 
-// BlocksData represents block subscription response data (single block)
-type BlocksData struct {
-	GetBlocks domain.Block `json:"getBlocks"`
-}
-
-// BlocksDataArr represents block query response data (multiple blocks)
-type BlocksDataArr struct {
-	GetBlocks []domain.Block `json:"getBlocks"`
-}
-
-// TxsData represents transaction query response data
-type TxsData struct {
-	GetTransactions []domain.Transaction `json:"getTransactions"`
-}
-
 type Syncer struct {
-	blockClient *GraphQLClient[BlocksDataArr]
-	txClient    *GraphQLClient[TxsData]
-	subClient   *SubscriptionClient
+	blockClient *client.GraphQLClient[types.BlocksDataArr]
+	txClient    *client.GraphQLClient[types.TxsData]
+	subClient   *client.SubscriptionClient
 
 	// Use repositories instead of direct DB access
 	blockRepo       repository.BlockRepository
@@ -38,9 +25,9 @@ type Syncer struct {
 // ... existing types ...
 
 func NewSyncer(
-	client *GraphQLClient[BlocksDataArr],
-	txClient *GraphQLClient[TxsData],
-	subClient *SubscriptionClient,
+	client *client.GraphQLClient[types.BlocksDataArr],
+	txClient *client.GraphQLClient[types.TxsData],
+	subClient *client.SubscriptionClient,
 	blockRepo repository.BlockRepository,
 	transactionRepo repository.TransactionRepository,
 ) *Syncer {
@@ -57,7 +44,7 @@ func NewSyncer(
 
 // SyncBlocks synchronizes blocks within a height range
 func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error {
-	var bd BlocksDataArr
+	var bd types.BlocksDataArr
 	if err := s.blockClient.Do(ctx, api.QBlocks, map[string]interface{}{
 		"gt": fromHeight,
 		"lt": toHeight,
@@ -77,7 +64,7 @@ func (s *Syncer) SyncBlocks(ctx context.Context, fromHeight, toHeight int) error
 
 // SyncTxs synchronizes transactions within a height range
 func (s *Syncer) SyncTxs(ctx context.Context, fromHeight, toHeight int) error {
-	var td TxsData
+	var td types.TxsData
 	if err := s.txClient.Do(ctx, api.QTxs, map[string]interface{}{
 		"gt":   fromHeight,
 		"lt":   toHeight,
@@ -138,6 +125,6 @@ func (s *Syncer) HandleRealtimeBlock(ctx context.Context, block domain.Block) er
 }
 
 // GetSubscriptionClient returns the subscription client
-func (s *Syncer) GetSubscriptionClient() *SubscriptionClient {
+func (s *Syncer) GetSubscriptionClient() *client.SubscriptionClient {
 	return s.subClient
 }

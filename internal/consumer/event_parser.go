@@ -1,4 +1,4 @@
-package event_parsing
+package consumer
 
 import (
 	"fmt"
