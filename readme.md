@@ -115,6 +115,7 @@ flowchart TD
     
     E --> Q[전체 블록 검증]
     Q --> R[누락 데이터 복구]
+    R --> O
     
     F --> O
 ```
@@ -151,7 +152,7 @@ flowchart TD
     E -->|GET /health| F[헬스 체크 응답]
     E -->|GET /tokens/balances| G[토큰 잔액 조회]
     E -->|GET /tokens/transfer-history| H[전송 내역 조회]
-    E -->|GET /tokens/{tokenPath}/balances| I[특정 토큰 잔액 조회]
+    E -->|GET /tokens/tokenPath/balances| I[특정 토큰 잔액 조회, tokenPath는 /가 들어간 주소 값]
     
     G --> J[데이터베이스 쿼리]
     H --> J
