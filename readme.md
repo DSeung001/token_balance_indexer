@@ -467,10 +467,9 @@ erDiagram
 ```
 
 ## 파싱 문제
-원래 의도대로는 Block > Transaction > Event를 추출하려고 했었습니다. <br/>
-그러나 가이드 문서에는 표시되어서 이벤트에 있어야할 토큰 이벤트 명칭 (func: Mint, Burn, Transfer)이 아래 샘플 데이터처럼 존재하지 않았습니다.<br/>
-Type도 Transfer가 아닌 register, StorageDeposit 처럼 알 수 없는 값이 많았고 func은 값 자체가 없어서 현재 프로젝트는 요구사항대로 구현해두었지만 실제로 돌려보면 event, balance 부분은 업데이트 되지 않고 있습니다. <br/>
-공식 문서를 파악해가며 분석하면 해결할 수 있었지만 물리적인 한계로 앞에 정리한 내용대로 구현해두었습니다.
+원래 의도대로는 Block → Transaction → Event 순으로 추출하려고 했었습니다. <br/>
+가이드 문서에는 표시되어서 이벤트에 있어야할 토큰 이벤트 명칭 (func: Mint, Burn, Transfer)이 Indexer에서 받은 데이터에는 존재하지 않았습니다.<br/>
+또한 Type도 Transfer가 아닌 register, StorageDeposit 처럼 다른 의미를 내포하는 값이 많았고 func의 값은 ""로 처리되어 작업에 혼란이 있었습니다. 현재 프로젝트는 요구사항대로 구현해두었지만 실제 실행시 event, balance 부분은 데이터가 존재하지 않아 저장되고 있지 않습니다. 이 부분 참고드리며, 공식 문서를 파악해가며 분석하면 해결할 수 있을거라 보이지만 물리적인 한계로 현재 상황에서는 과제 내용대로 구현하는 게 맞다는 판단이 들어 그렇게 진행했습니다.
 
 ```json
 {
