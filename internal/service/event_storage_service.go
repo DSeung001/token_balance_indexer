@@ -5,6 +5,7 @@ import (
 	"fmt"
 	event_parsing "gn-indexer/internal/consumer"
 	"gn-indexer/internal/domain"
+	"gn-indexer/internal/queue"
 	"gn-indexer/internal/repository"
 	"log"
 	"time"
@@ -17,6 +18,7 @@ type EventStorageService struct {
 	transferRepo  repository.TransferRepository
 	tokenRepo     repository.TokenRepository
 	eventParser   *event_parsing.EventParser
+	eventQueue    queue.EventQueue
 }
 
 // NewEventStorageService creates a new event storage service
@@ -25,6 +27,7 @@ func NewEventStorageService(
 	eventAttrRepo repository.EventAttrRepository,
 	transferRepo repository.TransferRepository,
 	tokenRepo repository.TokenRepository,
+	eventQueue queue.EventQueue,
 ) *EventStorageService {
 	return &EventStorageService{
 		eventRepo:     eventRepo,
@@ -32,6 +35,7 @@ func NewEventStorageService(
 		transferRepo:  transferRepo,
 		tokenRepo:     tokenRepo,
 		eventParser:   event_parsing.NewEventParser(),
+		eventQueue:    eventQueue,
 	}
 }
 
@@ -56,6 +60,12 @@ func (ess *EventStorageService) ProcessTransaction(ctx context.Context, tx *doma
 	for _, parsedEvent := range parsedEvents {
 		if err := ess.processSingleEvent(ctx, &parsedEvent, tx); err != nil {
 			return fmt.Errorf("process event: %w", err)
+		}
+
+		// Send event to queue for balance calculation
+		if err := ess.eventQueue.SendEvent(ctx, &parsedEvent); err != nil {
+			log.Printf("Failed to send event to queue: %v", err)
+			// Don't fail the transaction processing if queue fails
 		}
 	}
 
